@@ -128,7 +128,6 @@ func RegisterUserRoutes(
 			chat.PUT("/conversations/:id", h.Chat.UpdateConversation)
 			chat.DELETE("/conversations/:id", h.Chat.DeleteConversation)
 			chat.POST("/conversations/:id/messages", h.Chat.SendMessage)
-			chat.POST("/conversations/:id/images", h.Chat.GenerateImage)
 			chat.DELETE("/conversations/:id/messages/:mid", h.Chat.DeleteMessage)
 			chat.GET("/available-keys", h.Chat.GetAvailableKeys)
 			chat.GET("/available-keys/:id/models", h.Chat.GetModelsForKey)

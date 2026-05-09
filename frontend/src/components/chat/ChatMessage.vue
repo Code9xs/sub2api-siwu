@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onBeforeUnmount } from 'vue'
 import type { ChatMessage } from '@/api/chat'
 import { renderMarkdown } from '@/composables/useMarkdown'
 import ChatImageDisplay from './ChatImageDisplay.vue'
@@ -11,6 +11,8 @@ const props = defineProps<{
 
 const showCopy = ref(false)
 const copied = ref(false)
+const codeCopied = ref(false)
+let codeCopiedTimer: number | null = null
 
 const renderedContent = computed(() => {
   if (!props.message.content) return ''
@@ -33,12 +35,57 @@ const attachments = computed(() => {
 async function copyContent() {
   if (!props.message.content) return
   try {
-    await navigator.clipboard.writeText(props.message.content)
+    await copyText(props.message.content)
     copied.value = true
-    setTimeout(() => { copied.value = false }, 2000)
+    window.setTimeout(() => { copied.value = false }, 2000)
   } catch {
     // fallback
   }
+}
+
+async function handleMarkdownClick(event: MouseEvent) {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>('.code-copy-btn')
+  if (!button) return
+
+  const code = button.dataset.code
+  if (!code) return
+
+  await copyText(decodeURIComponent(code))
+  button.classList.add('copied')
+  const label = button.querySelector('span')
+  if (label) label.textContent = '已复制'
+  codeCopied.value = true
+
+  if (codeCopiedTimer !== null) {
+    window.clearTimeout(codeCopiedTimer)
+  }
+  codeCopiedTimer = window.setTimeout(() => {
+    button.classList.remove('copied')
+    if (label) label.textContent = '复制'
+    codeCopied.value = false
+    codeCopiedTimer = null
+  }, 1800)
+}
+
+onBeforeUnmount(() => {
+  if (codeCopiedTimer !== null) {
+    window.clearTimeout(codeCopiedTimer)
+  }
+})
+
+async function copyText(text: string) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text)
+    return
+  }
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.style.position = 'fixed'
+  textarea.style.opacity = '0'
+  document.body.appendChild(textarea)
+  textarea.select()
+  document.execCommand('copy')
+  document.body.removeChild(textarea)
 }
 </script>
 
@@ -73,7 +120,12 @@ async function copyContent() {
         v-else
         class="markdown-body"
         v-html="renderedContent"
+        @click="handleMarkdownClick"
       ></div>
+
+      <Transition name="copy-toast">
+        <div v-if="codeCopied" class="copy-toast">复制成功</div>
+      </Transition>
 
       <!-- Streaming indicator -->
       <span v-if="isStreaming" class="streaming-dot"></span>
@@ -286,8 +338,8 @@ async function copyContent() {
   margin: 12px 0;
   border-radius: 10px;
   overflow: hidden;
-  border: 1px solid #30363d;
-  background: #1e1e2e;
+  border: 1px solid #d1d5db;
+  background: #f8fafc;
 }
 
 .markdown-body :deep(.code-block-header) {
@@ -295,13 +347,13 @@ async function copyContent() {
   align-items: center;
   justify-content: space-between;
   padding: 8px 14px;
-  background: #181825;
-  border-bottom: 1px solid #30363d;
+  background: #eef2f7;
+  border-bottom: 1px solid #d1d5db;
 }
 
 .markdown-body :deep(.code-lang) {
   font-size: 12px;
-  color: #a6adc8;
+  color: #475569;
   text-transform: lowercase;
 }
 
@@ -309,19 +361,25 @@ async function copyContent() {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 8px;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  color: #a6adc8;
+  padding: 4px 9px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #334155;
   font-size: 12px;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .markdown-body :deep(.code-copy-btn:hover) {
-  background: rgba(255, 255, 255, 0.1);
-  color: #cdd6f4;
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.markdown-body :deep(.code-copy-btn.copied) {
+  border-color: #22c55e;
+  background: #dcfce7;
+  color: #15803d;
 }
 
 .markdown-body :deep(.code-block) {
@@ -331,8 +389,8 @@ async function copyContent() {
   font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
   font-size: 13px;
   line-height: 1.6;
-  background: #1e1e2e;
-  color: #cdd6f4;
+  background: #f8fafc;
+  color: #1e293b;
 }
 
 .markdown-body :deep(.code-block code) {
@@ -350,23 +408,46 @@ async function copyContent() {
   color: var(--color-text-primary, #1f2937);
 }
 
-/* Highlight.js Theme - Catppuccin Mocha */
-.markdown-body :deep(.hljs-keyword) { color: #cba6f7; }
-.markdown-body :deep(.hljs-string) { color: #a6e3a1; }
-.markdown-body :deep(.hljs-number) { color: #fab387; }
-.markdown-body :deep(.hljs-comment) { color: #6c7086; font-style: italic; }
-.markdown-body :deep(.hljs-function) { color: #89b4fa; }
-.markdown-body :deep(.hljs-title) { color: #89b4fa; }
-.markdown-body :deep(.hljs-params) { color: #f5c2e7; }
-.markdown-body :deep(.hljs-built_in) { color: #f9e2af; }
-.markdown-body :deep(.hljs-type) { color: #f9e2af; }
-.markdown-body :deep(.hljs-attr) { color: #89dceb; }
-.markdown-body :deep(.hljs-variable) { color: #cdd6f4; }
-.markdown-body :deep(.hljs-literal) { color: #fab387; }
-.markdown-body :deep(.hljs-meta) { color: #f38ba8; }
-.markdown-body :deep(.hljs-selector-class) { color: #a6e3a1; }
-.markdown-body :deep(.hljs-selector-tag) { color: #cba6f7; }
-.markdown-body :deep(.hljs-selector-id) { color: #89b4fa; }
-.markdown-body :deep(.hljs-addition) { color: #a6e3a1; background: rgba(166, 227, 161, 0.1); }
-.markdown-body :deep(.hljs-deletion) { color: #f38ba8; background: rgba(243, 139, 168, 0.1); }
+/* Highlight.js Theme - readable light theme */
+.markdown-body :deep(.hljs-keyword) { color: #7c3aed; }
+.markdown-body :deep(.hljs-string) { color: #047857; }
+.markdown-body :deep(.hljs-number) { color: #b45309; }
+.markdown-body :deep(.hljs-comment) { color: #64748b; font-style: italic; }
+.markdown-body :deep(.hljs-function) { color: #2563eb; }
+.markdown-body :deep(.hljs-title) { color: #1d4ed8; }
+.markdown-body :deep(.hljs-params) { color: #be185d; }
+.markdown-body :deep(.hljs-built_in) { color: #9333ea; }
+.markdown-body :deep(.hljs-type) { color: #0f766e; }
+.markdown-body :deep(.hljs-attr) { color: #0369a1; }
+.markdown-body :deep(.hljs-variable) { color: #334155; }
+.markdown-body :deep(.hljs-literal) { color: #c2410c; }
+.markdown-body :deep(.hljs-meta) { color: #be123c; }
+.markdown-body :deep(.hljs-selector-class) { color: #047857; }
+.markdown-body :deep(.hljs-selector-tag) { color: #7c3aed; }
+.markdown-body :deep(.hljs-selector-id) { color: #2563eb; }
+.markdown-body :deep(.hljs-addition) { color: #047857; background: #dcfce7; }
+.markdown-body :deep(.hljs-deletion) { color: #be123c; background: #fee2e2; }
+
+.copy-toast {
+  position: absolute;
+  right: 0;
+  top: -28px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #16a34a;
+  color: white;
+  font-size: 12px;
+  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.24);
+}
+
+.copy-toast-enter-active,
+.copy-toast-leave-active {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.copy-toast-enter-from,
+.copy-toast-leave-to {
+  opacity: 0;
+  transform: translateY(4px);
+}
 </style>

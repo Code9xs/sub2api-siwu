@@ -22,9 +22,7 @@ const canSend = computed(() =>
   (inputText.value.trim() !== '' || attachments.value.length > 0) && chatStore.canSend
 )
 
-const isBusy = computed(() =>
-  chatStore.isStreaming || chatStore.isGeneratingImage
-)
+const isBusy = computed(() => chatStore.isStreaming)
 
 const currentModelLabel = computed(() => {
   if (!chatStore.selectedModel) return t('chat.selectModel')
@@ -55,11 +53,7 @@ async function send() {
     textareaRef.value.style.height = 'auto'
   }
 
-  if (chatStore.isImageModel) {
-    await chatStore.generateImageMessage(content, '1024x1024', 1, outgoingAttachments)
-  } else {
-    await chatStore.sendMessage(content, outgoingAttachments)
-  }
+  await chatStore.sendMessage(content, outgoingAttachments)
 }
 
 function autoResize(e: Event) {
@@ -219,7 +213,7 @@ function readAsDataURL(file: File): Promise<string> {
 <template>
   <div class="composer-container">
     <div class="composer-wrapper">
-      <div class="composer" :class="{ focused: false, 'image-mode': chatStore.isImageModel }">
+      <div class="composer">
         <div v-if="attachments.length > 0" class="attachment-list">
           <div v-for="(attachment, index) in attachments" :key="`${attachment.name}-${index}`" class="attachment-chip">
             <span class="attachment-icon">{{ attachment.type === 'image' ? 'IMG' : 'TXT' }}</span>
@@ -231,7 +225,7 @@ function readAsDataURL(file: File): Promise<string> {
         <textarea
           ref="textareaRef"
           v-model="inputText"
-          :placeholder="chatStore.isImageModel ? t('chat.imagePlaceholder') : t('chat.inputPlaceholder')"
+          :placeholder="t('chat.inputPlaceholder')"
           :disabled="isBusy"
           rows="1"
           @keydown="handleKeydown"
@@ -302,13 +296,6 @@ function readAsDataURL(file: File): Promise<string> {
               <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                 <rect x="6" y="6" width="12" height="12" rx="2" />
               </svg>
-            </button>
-            <button
-              v-else-if="chatStore.isGeneratingImage"
-              class="action-btn generating-btn"
-              disabled
-            >
-              <span class="spinner"></span>
             </button>
             <button
               v-else
@@ -383,10 +370,6 @@ function readAsDataURL(file: File): Promise<string> {
 .composer:focus-within {
   border-color: var(--color-border-focus, #d1d5db);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
-}
-
-.composer.image-mode:focus-within {
-  border-color: #a855f7;
 }
 
 .attachment-list {
@@ -617,25 +600,6 @@ function readAsDataURL(file: File): Promise<string> {
 
 .stop-btn:hover {
   opacity: 0.8;
-}
-
-.generating-btn {
-  background: var(--color-bg-secondary, #f3f4f6);
-  cursor: wait;
-}
-
-.spinner {
-  display: block;
-  width: 16px;
-  height: 16px;
-  border: 2px solid var(--color-border, #e5e7eb);
-  border-top-color: var(--color-text-secondary, #6b7280);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 
 .composer-hint,

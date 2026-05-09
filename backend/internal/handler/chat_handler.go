@@ -274,56 +274,6 @@ func (h *ChatHandler) GetModelsForKey(c *gin.Context) {
 	response.Success(c, models)
 }
 
-// ChatGenerateImageRequest represents the image generation payload.
-type ChatGenerateImageRequest struct {
-	Prompt      string                   `json:"prompt"`
-	Model       string                   `json:"model"`
-	Size        string                   `json:"size"`
-	N           int                      `json:"n"`
-	Attachments []service.ChatAttachment `json:"attachments"`
-}
-
-// GenerateImage handles POST /api/v1/chat/conversations/:id/images
-func (h *ChatHandler) GenerateImage(c *gin.Context) {
-	subject, ok := middleware2.GetAuthSubjectFromContext(c)
-	if !ok {
-		response.Unauthorized(c, "User not authenticated")
-		return
-	}
-
-	convID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.BadRequest(c, "Invalid conversation ID")
-		return
-	}
-
-	var req ChatGenerateImageRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
-		return
-	}
-
-	result, err := h.chatService.GenerateImage(
-		c.Request.Context(),
-		subject.UserID,
-		convID,
-		service.ImageGenerateRequest{
-			Prompt:      req.Prompt,
-			Model:       req.Model,
-			Size:        req.Size,
-			N:           req.N,
-			Attachments: req.Attachments,
-		},
-		h.gatewayBaseURL,
-	)
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-
-	response.Success(c, result)
-}
-
 // ginSSEWriter adapts gin.ResponseWriter to service.SSEWriter interface.
 type ginSSEWriter struct {
 	writer gin.ResponseWriter

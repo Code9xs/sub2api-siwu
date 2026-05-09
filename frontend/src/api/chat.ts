@@ -140,29 +140,3 @@ export async function getModelsForKey(keyId: number): Promise<string[]> {
   const { data } = await apiClient.get(`/chat/available-keys/${keyId}/models`)
   return data
 }
-
-/**
- * Image generation response
- */
-export interface ImageGenerateResponse {
-  message: ChatMessage
-  image_urls: string[]
-}
-
-/**
- * Generate images in a conversation
- */
-export async function generateImage(
-  conversationId: number,
-  prompt: string,
-  model: string,
-  size = '1024x1024',
-  n = 1,
-  attachments: ChatAttachment[] = []
-): Promise<ImageGenerateResponse> {
-  const { data } = await apiClient.post(
-    `/chat/conversations/${conversationId}/images`,
-    { prompt, model, size, n, attachments }
-  )
-  return data
-}

@@ -282,11 +282,11 @@ func (s *ChatService) SendMessage(ctx context.Context, userID, conversationID in
 	// Build OpenAI-compatible messages array
 	chatMessages := make([]map[string]interface{}, 0, len(messages))
 	for i, msg := range messages {
-		messageAttachments := []ChatAttachment(nil)
-		if i == len(messages)-1 {
-			messageAttachments = attachments
+		if i == len(messages)-1 && len(attachments) > 0 {
+			chatMessages = append(chatMessages, buildOpenAIChatMessageWithAttachments(msg.Role, content, attachments))
+			continue
 		}
-		chatMessages = append(chatMessages, buildOpenAIChatMessage(msg, messageAttachments))
+		chatMessages = append(chatMessages, buildOpenAIChatMessage(msg))
 	}
 
 	// Build request body
@@ -380,17 +380,18 @@ func (s *ChatService) SendMessage(ctx context.Context, userID, conversationID in
 	return nil
 }
 
-func buildOpenAIChatMessage(msg *ChatMessage, latestAttachments []ChatAttachment) map[string]interface{} {
+func buildOpenAIChatMessage(msg *ChatMessage) map[string]interface{} {
 	if msg == nil {
 		return map[string]interface{}{"role": "user", "content": ""}
 	}
-	if msg.Role != "user" || len(latestAttachments) == 0 {
-		return map[string]interface{}{"role": msg.Role, "content": msg.Content}
-	}
+	return map[string]interface{}{"role": msg.Role, "content": msg.Content}
+}
+
+func buildOpenAIChatMessageWithAttachments(role, content string, attachments []ChatAttachment) map[string]interface{} {
 	parts := []map[string]interface{}{
-		{"type": "text", "text": buildAttachmentPrompt(msg.Content, latestAttachments)},
+		{"type": "text", "text": buildAttachmentPrompt(content, attachments)},
 	}
-	for _, imageURL := range attachmentImageURLs(latestAttachments) {
+	for _, imageURL := range attachmentImageURLs(attachments) {
 		parts = append(parts, map[string]interface{}{
 			"type": "image_url",
 			"image_url": map[string]string{
@@ -398,7 +399,7 @@ func buildOpenAIChatMessage(msg *ChatMessage, latestAttachments []ChatAttachment
 			},
 		})
 	}
-	return map[string]interface{}{"role": msg.Role, "content": parts}
+	return map[string]interface{}{"role": role, "content": parts}
 }
 
 func buildAttachmentDisplayContent(content string, attachments []ChatAttachment) string {
@@ -528,155 +529,4 @@ func (s *ChatService) autoGenerateTitle(ctx context.Context, conversationID int6
 			_, _ = s.chatRepo.UpdateConversation(ctx, conversationID, &title, nil)
 		}
 	}
-}
-
-// ImageGenerateRequest holds parameters for image generation.
-type ImageGenerateRequest struct {
-	Prompt      string           `json:"prompt"`
-	Model       string           `json:"model"`
-	Size        string           `json:"size"` // e.g., "1024x1024", "1024x1536"
-	N           int              `json:"n"`    // Number of images (1-4)
-	Attachments []ChatAttachment `json:"attachments"`
-}
-
-// ImageGenerateResult holds the result of image generation.
-type ImageGenerateResult struct {
-	Message   *ChatMessage `json:"message"`
-	ImageURLs []string     `json:"image_urls"`
-}
-
-// GenerateImage generates images using the gateway's images/generations endpoint.
-func (s *ChatService) GenerateImage(ctx context.Context, userID, conversationID int64, req ImageGenerateRequest, gatewayBaseURL string) (*ImageGenerateResult, error) {
-	// Verify ownership
-	conv, err := s.chatRepo.GetConversation(ctx, conversationID)
-	if err != nil {
-		return nil, ErrConversationNotFound
-	}
-	if conv.UserID != userID {
-		return nil, ErrConversationForbid
-	}
-
-	// Get the actual API key value
-	keyObj, err := s.apiKeyRepo.GetByID(ctx, conv.APIKeyID)
-	if err != nil {
-		return nil, fmt.Errorf("get api key: %w", err)
-	}
-	apiKey := keyObj.Key
-
-	imageModel := strings.TrimSpace(req.Model)
-	if imageModel == "" {
-		imageModel = "gpt-image-1"
-	}
-	displayContent := buildAttachmentDisplayContent(req.Prompt, req.Attachments)
-	metadata := attachmentMetadata(req.Attachments)
-
-	// Save user message (the prompt)
-	now := time.Now()
-	_, err = s.chatRepo.CreateMessageWithDetails(ctx, conversationID, "user", displayContent, "text", imageModel, 0, 0, nil, metadata)
-	if err != nil {
-		return nil, fmt.Errorf("save user message: %w", err)
-	}
-	_ = s.chatRepo.UpdateConversationLastMessageAt(ctx, conversationID, now)
-
-	// Default parameters
-	if req.Size == "" {
-		req.Size = "1024x1024"
-	}
-	if req.N <= 0 || req.N > 4 {
-		req.N = 1
-	}
-
-	imageAttachments := attachmentImageURLs(req.Attachments)
-	prompt := buildAttachmentPrompt(req.Prompt, req.Attachments)
-	endpoint := gatewayBaseURL + "/v1/images/generations"
-	if len(imageAttachments) > 0 {
-		endpoint = gatewayBaseURL + "/v1/images/edits"
-	}
-
-	// Build request body
-	reqBody := map[string]interface{}{
-		"model":           imageModel,
-		"prompt":          prompt,
-		"size":            req.Size,
-		"n":               req.N,
-		"response_format": "b64_json",
-	}
-	if len(imageAttachments) > 0 {
-		images := make([]map[string]string, 0, len(imageAttachments))
-		for _, imageURL := range imageAttachments {
-			images = append(images, map[string]string{"image_url": imageURL})
-		}
-		reqBody["images"] = images
-	}
-	bodyBytes, err := json.Marshal(reqBody)
-	if err != nil {
-		return nil, fmt.Errorf("marshal request: %w", err)
-	}
-
-	// Create HTTP request to gateway
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(bodyBytes))
-	if err != nil {
-		return nil, fmt.Errorf("create gateway request: %w", err)
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+apiKey)
-
-	// Execute request (images can take a while)
-	client := &http.Client{Timeout: 5 * time.Minute}
-	resp, err := client.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("gateway request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return nil, fmt.Errorf("gateway returned status %d: %s", resp.StatusCode, string(body))
-	}
-
-	// Parse response
-	var imageResp struct {
-		Data []struct {
-			B64JSON string `json:"b64_json"`
-			URL     string `json:"url"`
-		} `json:"data"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&imageResp); err != nil {
-		return nil, fmt.Errorf("decode image response: %w", err)
-	}
-
-	// Collect image data (URLs or base64)
-	imageURLs := make([]string, 0, len(imageResp.Data))
-	for _, img := range imageResp.Data {
-		if img.B64JSON != "" {
-			imageURLs = append(imageURLs, "data:image/png;base64,"+img.B64JSON)
-		} else if img.URL != "" {
-			imageURLs = append(imageURLs, img.URL)
-		}
-	}
-
-	// Save assistant message with image_generation content type
-	assistantContent := fmt.Sprintf("Generated %d image(s) for: %s", len(imageURLs), req.Prompt)
-	msg, err := s.chatRepo.CreateMessageWithDetails(ctx, conversationID, "assistant", assistantContent, "image_generation", imageModel, 0, 0, imageURLs, map[string]interface{}{
-		"size": req.Size,
-		"n":    req.N,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("save assistant message: %w", err)
-	}
-
-	// Update conversation model
-	model := imageModel
-	_, _ = s.chatRepo.UpdateConversation(ctx, conversationID, nil, &model)
-
-	// Auto-generate title for first message
-	messages, _ := s.chatRepo.ListMessages(ctx, conversationID)
-	if conv.Title == "New Chat" && len(messages) <= 2 {
-		go s.autoGenerateTitle(context.Background(), conversationID, req.Prompt, gatewayBaseURL, apiKey, "gpt-4o-mini")
-	}
-
-	return &ImageGenerateResult{
-		Message:   msg,
-		ImageURLs: imageURLs,
-	}, nil
 }
