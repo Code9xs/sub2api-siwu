@@ -118,5 +118,20 @@ func RegisterUserRoutes(
 			monitors.GET("", h.ChannelMonitor.List)
 			monitors.GET("/:id/status", h.ChannelMonitor.GetStatus)
 		}
+
+		// 聊天功能
+		chat := authenticated.Group("/chat")
+		{
+			chat.GET("/conversations", h.Chat.ListConversations)
+			chat.POST("/conversations", h.Chat.CreateConversation)
+			chat.GET("/conversations/:id", h.Chat.GetConversation)
+			chat.PUT("/conversations/:id", h.Chat.UpdateConversation)
+			chat.DELETE("/conversations/:id", h.Chat.DeleteConversation)
+			chat.POST("/conversations/:id/messages", h.Chat.SendMessage)
+			chat.POST("/conversations/:id/images", h.Chat.GenerateImage)
+			chat.DELETE("/conversations/:id/messages/:mid", h.Chat.DeleteMessage)
+			chat.GET("/available-keys", h.Chat.GetAvailableKeys)
+			chat.GET("/available-keys/:id/models", h.Chat.GetModelsForKey)
+		}
 	}
 }

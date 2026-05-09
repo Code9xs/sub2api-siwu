@@ -1,0 +1,431 @@
+/**
+ * Chat Store
+ * Manages state for the ChatGPT-style chat feature
+ */
+
+import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
+import * as chatApi from '@/api/chat'
+import type { Conversation, ChatMessage, ChatAvailableKey } from '@/api/chat'
+import { useSSE } from '@/composables/useSSE'
+
+const IMAGE_MODELS = ['gpt-image-1']
+
+export const useChatStore = defineStore('chat', () => {
+  // ==================== State ====================
+
+  const conversations = ref<Conversation[]>([])
+  const activeConversationId = ref<number | null>(null)
+  const messages = ref<ChatMessage[]>([])
+  const availableKeys = ref<ChatAvailableKey[]>([])
+  const availableModels = ref<string[]>([])
+
+  const selectedKeyId = ref<number | null>(null)
+  const selectedModel = ref<string>('')
+  const streamingContent = ref<string>('')
+  const conversationsLoading = ref(false)
+  const messagesLoading = ref(false)
+  const keysLoading = ref(false)
+  const isGeneratingImage = ref(false)
+
+  const totalConversations = ref(0)
+
+  // SSE composable
+  const { isStreaming, abort: abortStream, start: startStream } = useSSE()
+
+  // ==================== Computed ====================
+
+  const activeConversation = computed(() =>
+    conversations.value.find(c => c.id === activeConversationId.value) || null
+  )
+
+  const hasKeys = computed(() => availableKeys.value.length > 0)
+
+  const canSend = computed(() =>
+    selectedKeyId.value !== null &&
+    selectedModel.value !== '' &&
+    !isStreaming.value &&
+    !isGeneratingImage.value
+  )
+
+  const isImageModel = computed(() =>
+    IMAGE_MODELS.includes(selectedModel.value)
+  )
+
+  // Combine stored messages with streaming content for display
+  const displayMessages = computed<ChatMessage[]>(() => {
+    const msgs = [...messages.value]
+    if (isStreaming.value && streamingContent.value) {
+      msgs.push({
+        id: -1,
+        conversation_id: activeConversationId.value || 0,
+        role: 'assistant',
+        content: streamingContent.value,
+        content_type: 'text',
+        model: selectedModel.value,
+        tokens_used: 0,
+        cost_usd: 0,
+        created_at: new Date().toISOString()
+      })
+    }
+    return msgs
+  })
+
+  // ==================== Actions ====================
+
+  /**
+   * Load available API keys
+   */
+  async function loadAvailableKeys() {
+    keysLoading.value = true
+    try {
+      availableKeys.value = await chatApi.getAvailableKeys()
+      // Auto-select first key if only one
+      if (availableKeys.value.length === 1 && !selectedKeyId.value) {
+        selectedKeyId.value = availableKeys.value[0].id
+        await loadModelsForKey(availableKeys.value[0].id)
+      }
+    } catch (error) {
+      console.error('Failed to load available keys:', error)
+    } finally {
+      keysLoading.value = false
+    }
+  }
+
+  /**
+   * Load available models for a specific key
+   */
+  async function loadModelsForKey(keyId: number) {
+    try {
+      availableModels.value = await chatApi.getModelsForKey(keyId)
+      // Auto-select first model if none selected
+      if (availableModels.value.length > 0 && !selectedModel.value) {
+        selectedModel.value = availableModels.value[0]
+      }
+    } catch (error) {
+      console.error('Failed to load models:', error)
+    }
+  }
+
+  /**
+   * Select an API key and load its models
+   */
+  async function selectKey(keyId: number) {
+    selectedKeyId.value = keyId
+    selectedModel.value = ''
+    await loadModelsForKey(keyId)
+  }
+
+  /**
+   * Select a model
+   */
+  function selectModel(model: string) {
+    selectedModel.value = model
+  }
+
+  /**
+   * Load conversations list
+   */
+  async function loadConversations(page = 1, pageSize = 50) {
+    conversationsLoading.value = true
+    try {
+      const result = await chatApi.listConversations(page, pageSize)
+      conversations.value = result.items || []
+      totalConversations.value = result.total
+    } catch (error) {
+      console.error('Failed to load conversations:', error)
+    } finally {
+      conversationsLoading.value = false
+    }
+  }
+
+  /**
+   * Select a conversation and load its messages
+   */
+  async function selectConversation(conversationId: number) {
+    activeConversationId.value = conversationId
+    messagesLoading.value = true
+    try {
+      const detail = await chatApi.getConversation(conversationId)
+      messages.value = detail.messages || []
+      // Restore model from conversation
+      if (detail.conversation.model) {
+        selectedModel.value = detail.conversation.model
+      }
+      // Restore key
+      if (detail.conversation.api_key_id) {
+        selectedKeyId.value = detail.conversation.api_key_id
+      }
+    } catch (error) {
+      console.error('Failed to load conversation:', error)
+    } finally {
+      messagesLoading.value = false
+    }
+  }
+
+  /**
+   * Create a new conversation
+   */
+  async function createConversation(title = ''): Promise<Conversation | null> {
+    if (!selectedKeyId.value) return null
+
+    try {
+      const conv = await chatApi.createConversation(
+        selectedKeyId.value,
+        selectedModel.value,
+        title
+      )
+      conversations.value.unshift(conv)
+      activeConversationId.value = conv.id
+      messages.value = []
+      return conv
+    } catch (error) {
+      console.error('Failed to create conversation:', error)
+      return null
+    }
+  }
+
+  /**
+   * Update conversation title
+   */
+  async function updateConversationTitle(conversationId: number, title: string) {
+    try {
+      const updated = await chatApi.updateConversation(conversationId, { title })
+      const index = conversations.value.findIndex(c => c.id === conversationId)
+      if (index !== -1) {
+        conversations.value[index] = updated
+      }
+    } catch (error) {
+      console.error('Failed to update conversation:', error)
+    }
+  }
+
+  /**
+   * Delete a conversation
+   */
+  async function deleteConversation(conversationId: number) {
+    try {
+      await chatApi.deleteConversation(conversationId)
+      conversations.value = conversations.value.filter(c => c.id !== conversationId)
+      if (activeConversationId.value === conversationId) {
+        activeConversationId.value = null
+        messages.value = []
+      }
+    } catch (error) {
+      console.error('Failed to delete conversation:', error)
+    }
+  }
+
+  /**
+   * Send a message and stream the response
+   */
+  async function sendMessage(content: string) {
+    if (!canSend.value || !content.trim()) return
+
+    // Create conversation if none is active
+    if (!activeConversationId.value) {
+      const conv = await createConversation()
+      if (!conv) return
+    }
+
+    const conversationId = activeConversationId.value!
+
+    // Add user message to display immediately
+    const userMessage: ChatMessage = {
+      id: Date.now(), // Temporary ID
+      conversation_id: conversationId,
+      role: 'user',
+      content: content.trim(),
+      content_type: 'text',
+      model: selectedModel.value,
+      tokens_used: 0,
+      cost_usd: 0,
+      created_at: new Date().toISOString()
+    }
+    messages.value.push(userMessage)
+
+    // Start streaming
+    streamingContent.value = ''
+    await startStream(
+      `/chat/conversations/${conversationId}/messages`,
+      {
+        content: content.trim(),
+        model: selectedModel.value
+      },
+      {
+        onDelta(delta) {
+          streamingContent.value += delta
+        },
+        onDone() {
+          // Add the completed assistant message
+          if (streamingContent.value) {
+            messages.value.push({
+              id: Date.now() + 1,
+              conversation_id: conversationId,
+              role: 'assistant',
+              content: streamingContent.value,
+              content_type: 'text',
+              model: selectedModel.value,
+              tokens_used: 0,
+              cost_usd: 0,
+              created_at: new Date().toISOString()
+            })
+          }
+          streamingContent.value = ''
+
+          // Reload conversations to get updated title/timestamp
+          loadConversations()
+        },
+        onError(error) {
+          console.error('Stream error:', error)
+          streamingContent.value = ''
+        }
+      }
+    )
+  }
+
+  /**
+   * Stop the current stream
+   */
+  function stopStreaming() {
+    abortStream()
+    if (streamingContent.value) {
+      messages.value.push({
+        id: Date.now() + 1,
+        conversation_id: activeConversationId.value || 0,
+        role: 'assistant',
+        content: streamingContent.value,
+        content_type: 'text',
+        model: selectedModel.value,
+        tokens_used: 0,
+        cost_usd: 0,
+        created_at: new Date().toISOString()
+      })
+    }
+    streamingContent.value = ''
+  }
+
+  /**
+   * Generate image in the current conversation
+   */
+  async function generateImageMessage(prompt: string, size = '1024x1024', n = 1) {
+    if (!selectedKeyId.value || !prompt.trim()) return
+
+    // Create conversation if none is active
+    if (!activeConversationId.value) {
+      const conv = await createConversation()
+      if (!conv) return
+    }
+
+    const conversationId = activeConversationId.value!
+
+    // Add user message optimistically
+    const userMessage: ChatMessage = {
+      id: Date.now(),
+      conversation_id: conversationId,
+      role: 'user',
+      content: prompt.trim(),
+      content_type: 'text',
+      model: 'gpt-image-1',
+      tokens_used: 0,
+      cost_usd: 0,
+      created_at: new Date().toISOString()
+    }
+    messages.value.push(userMessage)
+
+    isGeneratingImage.value = true
+    try {
+      const result = await chatApi.generateImage(conversationId, prompt.trim(), size, n)
+
+      // Add assistant message with image URLs
+      const assistantMsg: ChatMessage = {
+        ...result.message,
+        image_urls: result.image_urls
+      }
+      messages.value.push(assistantMsg)
+
+      // Reload conversations for updated title
+      loadConversations()
+    } catch (error) {
+      console.error('Failed to generate image:', error)
+      // Add error message
+      messages.value.push({
+        id: Date.now() + 1,
+        conversation_id: conversationId,
+        role: 'assistant',
+        content: 'Failed to generate image. Please try again.',
+        content_type: 'text',
+        model: 'gpt-image-1',
+        tokens_used: 0,
+        cost_usd: 0,
+        created_at: new Date().toISOString()
+      })
+    } finally {
+      isGeneratingImage.value = false
+    }
+  }
+
+  /**
+   * Start a new chat (reset state)
+   */
+  function newChat() {
+    activeConversationId.value = null
+    messages.value = []
+    streamingContent.value = ''
+  }
+
+  /**
+   * Delete a specific message
+   */
+  async function deleteMessage(conversationId: number, messageId: number) {
+    try {
+      await chatApi.deleteMessage(conversationId, messageId)
+      messages.value = messages.value.filter(m => m.id !== messageId)
+    } catch (error) {
+      console.error('Failed to delete message:', error)
+    }
+  }
+
+  // ==================== Return Store API ====================
+
+  return {
+    // State
+    conversations,
+    activeConversationId,
+    messages,
+    availableKeys,
+    availableModels,
+    selectedKeyId,
+    selectedModel,
+    streamingContent,
+    isStreaming,
+    isGeneratingImage,
+    conversationsLoading,
+    messagesLoading,
+    keysLoading,
+    totalConversations,
+
+    // Computed
+    activeConversation,
+    hasKeys,
+    canSend,
+    isImageModel,
+    displayMessages,
+
+    // Actions
+    loadAvailableKeys,
+    loadModelsForKey,
+    selectKey,
+    selectModel,
+    loadConversations,
+    selectConversation,
+    createConversation,
+    updateConversationTitle,
+    deleteConversation,
+    sendMessage,
+    generateImageMessage,
+    stopStreaming,
+    newChat,
+    deleteMessage
+  }
+})

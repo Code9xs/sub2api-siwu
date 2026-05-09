@@ -85,6 +85,8 @@ const (
 	EdgeAuthIdentities = "auth_identities"
 	// EdgePendingAuthSessions holds the string denoting the pending_auth_sessions edge name in mutations.
 	EdgePendingAuthSessions = "pending_auth_sessions"
+	// EdgeConversations holds the string denoting the conversations edge name in mutations.
+	EdgeConversations = "conversations"
 	// EdgeUserAllowedGroups holds the string denoting the user_allowed_groups edge name in mutations.
 	EdgeUserAllowedGroups = "user_allowed_groups"
 	// Table holds the table name of the user in the database.
@@ -171,6 +173,13 @@ const (
 	PendingAuthSessionsInverseTable = "pending_auth_sessions"
 	// PendingAuthSessionsColumn is the table column denoting the pending_auth_sessions relation/edge.
 	PendingAuthSessionsColumn = "target_user_id"
+	// ConversationsTable is the table that holds the conversations relation/edge.
+	ConversationsTable = "conversations"
+	// ConversationsInverseTable is the table name for the Conversation entity.
+	// It exists in this package in order to avoid circular dependency with the "conversation" package.
+	ConversationsInverseTable = "conversations"
+	// ConversationsColumn is the table column denoting the conversations relation/edge.
+	ConversationsColumn = "user_id"
 	// UserAllowedGroupsTable is the table that holds the user_allowed_groups relation/edge.
 	UserAllowedGroupsTable = "user_allowed_groups"
 	// UserAllowedGroupsInverseTable is the table name for the UserAllowedGroup entity.
@@ -569,6 +578,20 @@ func ByPendingAuthSessions(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOpti
 	}
 }
 
+// ByConversationsCount orders the results by conversations count.
+func ByConversationsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newConversationsStep(), opts...)
+	}
+}
+
+// ByConversations orders the results by conversations terms.
+func ByConversations(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newConversationsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
 // ByUserAllowedGroupsCount orders the results by user_allowed_groups count.
 func ByUserAllowedGroupsCount(opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -664,6 +687,13 @@ func newPendingAuthSessionsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(PendingAuthSessionsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, PendingAuthSessionsTable, PendingAuthSessionsColumn),
+	)
+}
+func newConversationsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(ConversationsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, ConversationsTable, ConversationsColumn),
 	)
 }
 func newUserAllowedGroupsStep() *sqlgraph.Step {

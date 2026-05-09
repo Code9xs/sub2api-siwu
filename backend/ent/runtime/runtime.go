@@ -16,10 +16,12 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitordailyrollup"
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitorhistory"
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitorrequesttemplate"
+	"github.com/Wei-Shaw/sub2api/ent/conversation"
 	"github.com/Wei-Shaw/sub2api/ent/errorpassthroughrule"
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
+	"github.com/Wei-Shaw/sub2api/ent/message"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
@@ -677,6 +679,37 @@ func init() {
 	channelmonitorrequesttemplate.DefaultBodyOverrideMode = channelmonitorrequesttemplateDescBodyOverrideMode.Default.(string)
 	// channelmonitorrequesttemplate.BodyOverrideModeValidator is a validator for the "body_override_mode" field. It is called by the builders before save.
 	channelmonitorrequesttemplate.BodyOverrideModeValidator = channelmonitorrequesttemplateDescBodyOverrideMode.Validators[0].(func(string) error)
+	conversationMixin := schema.Conversation{}.Mixin()
+	conversationMixinHooks1 := conversationMixin[1].Hooks()
+	conversation.Hooks[0] = conversationMixinHooks1[0]
+	conversationMixinInters1 := conversationMixin[1].Interceptors()
+	conversation.Interceptors[0] = conversationMixinInters1[0]
+	conversationMixinFields0 := conversationMixin[0].Fields()
+	_ = conversationMixinFields0
+	conversationFields := schema.Conversation{}.Fields()
+	_ = conversationFields
+	// conversationDescCreatedAt is the schema descriptor for created_at field.
+	conversationDescCreatedAt := conversationMixinFields0[0].Descriptor()
+	// conversation.DefaultCreatedAt holds the default value on creation for the created_at field.
+	conversation.DefaultCreatedAt = conversationDescCreatedAt.Default.(func() time.Time)
+	// conversationDescUpdatedAt is the schema descriptor for updated_at field.
+	conversationDescUpdatedAt := conversationMixinFields0[1].Descriptor()
+	// conversation.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	conversation.DefaultUpdatedAt = conversationDescUpdatedAt.Default.(func() time.Time)
+	// conversation.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	conversation.UpdateDefaultUpdatedAt = conversationDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// conversationDescTitle is the schema descriptor for title field.
+	conversationDescTitle := conversationFields[2].Descriptor()
+	// conversation.DefaultTitle holds the default value on creation for the title field.
+	conversation.DefaultTitle = conversationDescTitle.Default.(string)
+	// conversation.TitleValidator is a validator for the "title" field. It is called by the builders before save.
+	conversation.TitleValidator = conversationDescTitle.Validators[0].(func(string) error)
+	// conversationDescModel is the schema descriptor for model field.
+	conversationDescModel := conversationFields[3].Descriptor()
+	// conversation.DefaultModel holds the default value on creation for the model field.
+	conversation.DefaultModel = conversationDescModel.Default.(string)
+	// conversation.ModelValidator is a validator for the "model" field. It is called by the builders before save.
+	conversation.ModelValidator = conversationDescModel.Validators[0].(func(string) error)
 	errorpassthroughruleMixin := schema.ErrorPassthroughRule{}.Mixin()
 	errorpassthroughruleMixinFields0 := errorpassthroughruleMixin[0].Fields()
 	_ = errorpassthroughruleMixinFields0
@@ -923,6 +956,43 @@ func init() {
 	identityadoptiondecisionDescDecidedAt := identityadoptiondecisionFields[4].Descriptor()
 	// identityadoptiondecision.DefaultDecidedAt holds the default value on creation for the decided_at field.
 	identityadoptiondecision.DefaultDecidedAt = identityadoptiondecisionDescDecidedAt.Default.(func() time.Time)
+	messageMixin := schema.Message{}.Mixin()
+	messageMixinFields0 := messageMixin[0].Fields()
+	_ = messageMixinFields0
+	messageFields := schema.Message{}.Fields()
+	_ = messageFields
+	// messageDescCreatedAt is the schema descriptor for created_at field.
+	messageDescCreatedAt := messageMixinFields0[0].Descriptor()
+	// message.DefaultCreatedAt holds the default value on creation for the created_at field.
+	message.DefaultCreatedAt = messageDescCreatedAt.Default.(func() time.Time)
+	// messageDescUpdatedAt is the schema descriptor for updated_at field.
+	messageDescUpdatedAt := messageMixinFields0[1].Descriptor()
+	// message.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	message.DefaultUpdatedAt = messageDescUpdatedAt.Default.(func() time.Time)
+	// message.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	message.UpdateDefaultUpdatedAt = messageDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// messageDescContent is the schema descriptor for content field.
+	messageDescContent := messageFields[2].Descriptor()
+	// message.DefaultContent holds the default value on creation for the content field.
+	message.DefaultContent = messageDescContent.Default.(string)
+	// messageDescContentType is the schema descriptor for content_type field.
+	messageDescContentType := messageFields[3].Descriptor()
+	// message.DefaultContentType holds the default value on creation for the content_type field.
+	message.DefaultContentType = messageDescContentType.Default.(string)
+	// message.ContentTypeValidator is a validator for the "content_type" field. It is called by the builders before save.
+	message.ContentTypeValidator = messageDescContentType.Validators[0].(func(string) error)
+	// messageDescModel is the schema descriptor for model field.
+	messageDescModel := messageFields[5].Descriptor()
+	// message.ModelValidator is a validator for the "model" field. It is called by the builders before save.
+	message.ModelValidator = messageDescModel.Validators[0].(func(string) error)
+	// messageDescTokensUsed is the schema descriptor for tokens_used field.
+	messageDescTokensUsed := messageFields[6].Descriptor()
+	// message.DefaultTokensUsed holds the default value on creation for the tokens_used field.
+	message.DefaultTokensUsed = messageDescTokensUsed.Default.(int)
+	// messageDescCostUsd is the schema descriptor for cost_usd field.
+	messageDescCostUsd := messageFields[7].Descriptor()
+	// message.DefaultCostUsd holds the default value on creation for the cost_usd field.
+	message.DefaultCostUsd = messageDescCostUsd.Default.(float64)
 	paymentauditlogFields := schema.PaymentAuditLog{}.Fields()
 	_ = paymentauditlogFields
 	// paymentauditlogDescOrderID is the schema descriptor for order_id field.

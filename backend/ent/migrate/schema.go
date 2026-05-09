@@ -584,6 +584,50 @@ var (
 			},
 		},
 	}
+	// ConversationsColumns holds the columns for the "conversations" table.
+	ConversationsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "deleted_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "title", Type: field.TypeString, Size: 200, Default: "New Chat"},
+		{Name: "model", Type: field.TypeString, Size: 100, Default: ""},
+		{Name: "last_message_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "api_key_id", Type: field.TypeInt64},
+		{Name: "user_id", Type: field.TypeInt64},
+	}
+	// ConversationsTable holds the schema information for the "conversations" table.
+	ConversationsTable = &schema.Table{
+		Name:       "conversations",
+		Columns:    ConversationsColumns,
+		PrimaryKey: []*schema.Column{ConversationsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "conversations_api_keys_conversations",
+				Columns:    []*schema.Column{ConversationsColumns[7]},
+				RefColumns: []*schema.Column{APIKeysColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "conversations_users_conversations",
+				Columns:    []*schema.Column{ConversationsColumns[8]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "conversation_user_id_deleted_at_last_message_at",
+				Unique:  false,
+				Columns: []*schema.Column{ConversationsColumns[8], ConversationsColumns[3], ConversationsColumns[6]},
+			},
+			{
+				Name:    "conversation_api_key_id",
+				Unique:  false,
+				Columns: []*schema.Column{ConversationsColumns[7]},
+			},
+		},
+	}
 	// ErrorPassthroughRulesColumns holds the columns for the "error_passthrough_rules" table.
 	ErrorPassthroughRulesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -775,6 +819,42 @@ var (
 				Name:    "identityadoptiondecision_identity_id",
 				Unique:  false,
 				Columns: []*schema.Column{IdentityAdoptionDecisionsColumns[6]},
+			},
+		},
+	}
+	// MessagesColumns holds the columns for the "messages" table.
+	MessagesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "role", Type: field.TypeEnum, Enums: []string{"user", "assistant", "system"}},
+		{Name: "content", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "content_type", Type: field.TypeString, Size: 20, Default: "text"},
+		{Name: "image_urls", Type: field.TypeJSON, Nullable: true},
+		{Name: "model", Type: field.TypeString, Nullable: true, Size: 100},
+		{Name: "tokens_used", Type: field.TypeInt, Default: 0},
+		{Name: "cost_usd", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
+		{Name: "metadata", Type: field.TypeJSON, Nullable: true},
+		{Name: "conversation_id", Type: field.TypeInt64},
+	}
+	// MessagesTable holds the schema information for the "messages" table.
+	MessagesTable = &schema.Table{
+		Name:       "messages",
+		Columns:    MessagesColumns,
+		PrimaryKey: []*schema.Column{MessagesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "messages_conversations_messages",
+				Columns:    []*schema.Column{MessagesColumns[11]},
+				RefColumns: []*schema.Column{ConversationsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "message_conversation_id_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{MessagesColumns[11], MessagesColumns[1]},
 			},
 		},
 	}
@@ -1692,10 +1772,12 @@ var (
 		ChannelMonitorDailyRollupsTable,
 		ChannelMonitorHistoriesTable,
 		ChannelMonitorRequestTemplatesTable,
+		ConversationsTable,
 		ErrorPassthroughRulesTable,
 		GroupsTable,
 		IdempotencyRecordsTable,
 		IdentityAdoptionDecisionsTable,
+		MessagesTable,
 		PaymentAuditLogsTable,
 		PaymentOrdersTable,
 		PaymentProviderInstancesTable,
@@ -1764,6 +1846,11 @@ func init() {
 	ChannelMonitorRequestTemplatesTable.Annotation = &entsql.Annotation{
 		Table: "channel_monitor_request_templates",
 	}
+	ConversationsTable.ForeignKeys[0].RefTable = APIKeysTable
+	ConversationsTable.ForeignKeys[1].RefTable = UsersTable
+	ConversationsTable.Annotation = &entsql.Annotation{
+		Table: "conversations",
+	}
 	ErrorPassthroughRulesTable.Annotation = &entsql.Annotation{
 		Table: "error_passthrough_rules",
 	}
@@ -1777,6 +1864,10 @@ func init() {
 	IdentityAdoptionDecisionsTable.ForeignKeys[1].RefTable = PendingAuthSessionsTable
 	IdentityAdoptionDecisionsTable.Annotation = &entsql.Annotation{
 		Table: "identity_adoption_decisions",
+	}
+	MessagesTable.ForeignKeys[0].RefTable = ConversationsTable
+	MessagesTable.Annotation = &entsql.Annotation{
+		Table: "messages",
 	}
 	PaymentAuditLogsTable.Annotation = &entsql.Annotation{
 		Table: "payment_audit_logs",

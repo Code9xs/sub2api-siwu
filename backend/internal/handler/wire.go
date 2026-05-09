@@ -1,6 +1,9 @@
 package handler
 
 import (
+	"fmt"
+
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler/admin"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
@@ -84,6 +87,17 @@ func ProvideSettingHandler(settingService *service.SettingService, buildInfo Bui
 	return NewSettingHandler(settingService, buildInfo.Version)
 }
 
+// ProvideChatHandler creates ChatHandler with gateway base URL.
+func ProvideChatHandler(chatService *service.ChatService, cfg *config.Config) *ChatHandler {
+	// Build gateway base URL from config for internal API calls
+	port := 8080
+	if cfg != nil && cfg.Server.Port != 0 {
+		port = cfg.Server.Port
+	}
+	gatewayBaseURL := fmt.Sprintf("http://127.0.0.1:%d", port)
+	return NewChatHandler(chatService, gatewayBaseURL)
+}
+
 // ProvideHandlers creates the Handlers struct
 func ProvideHandlers(
 	authHandler *AuthHandler,
@@ -102,6 +116,7 @@ func ProvideHandlers(
 	paymentHandler *PaymentHandler,
 	paymentWebhookHandler *PaymentWebhookHandler,
 	availableChannelHandler *AvailableChannelHandler,
+	chatHandler *ChatHandler,
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
 ) *Handlers {
@@ -122,6 +137,7 @@ func ProvideHandlers(
 		Payment:          paymentHandler,
 		PaymentWebhook:   paymentWebhookHandler,
 		AvailableChannel: availableChannelHandler,
+		Chat:             chatHandler,
 	}
 }
 
@@ -143,6 +159,7 @@ var ProviderSet = wire.NewSet(
 	NewPaymentHandler,
 	NewPaymentWebhookHandler,
 	NewAvailableChannelHandler,
+	ProvideChatHandler,
 
 	// Admin handlers
 	admin.NewDashboardHandler,
