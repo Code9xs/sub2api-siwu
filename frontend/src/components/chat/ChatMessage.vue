@@ -25,6 +25,11 @@ const hasImages = computed(() =>
 
 const isUser = computed(() => props.message.role === 'user')
 
+const attachments = computed(() => {
+  const raw = props.message.metadata?.attachments
+  return Array.isArray(raw) ? raw as Array<{ name?: string; type?: string; mime_type?: string }> : []
+})
+
 async function copyContent() {
   if (!props.message.content) return
   try {
@@ -47,6 +52,11 @@ async function copyContent() {
     <!-- User message: right-aligned bubble -->
     <div v-if="isUser" class="user-bubble">
       <span class="user-text">{{ message.content }}</span>
+      <div v-if="attachments.length > 0" class="message-attachments">
+        <span v-for="(attachment, index) in attachments" :key="`${attachment.name}-${index}`" class="message-attachment">
+          {{ attachment.type === 'image' ? 'IMG' : 'FILE' }} {{ attachment.name }}
+        </span>
+      </div>
     </div>
 
     <!-- Assistant message: full-width, no bubble -->
@@ -109,6 +119,24 @@ async function copyContent() {
   word-wrap: break-word;
   overflow-wrap: break-word;
   white-space: pre-wrap;
+}
+
+.message-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.message-attachment {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  font-size: 12px;
 }
 
 /* Assistant content */

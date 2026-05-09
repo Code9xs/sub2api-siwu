@@ -1,16 +1,25 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick, onBeforeUnmount } from 'vue'
 import { useChatStore } from '@/stores/chat'
+import type { ChatAttachment } from '@/api/chat'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
 const chatStore = useChatStore()
 const inputText = ref('')
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
+const fileInputRef = ref<HTMLInputElement | null>(null)
 const showModelDropdown = ref(false)
+const showKeyDropdown = ref(false)
+const modelButtonRef = ref<HTMLButtonElement | null>(null)
+const keyButtonRef = ref<HTMLButtonElement | null>(null)
+const dropdownStyle = ref<Record<string, string>>({})
+const keyDropdownStyle = ref<Record<string, string>>({})
+const attachments = ref<ChatAttachment[]>([])
+const attachmentError = ref('')
 
 const canSend = computed(() =>
-  inputText.value.trim() !== '' && chatStore.canSend
+  (inputText.value.trim() !== '' || attachments.value.length > 0) && chatStore.canSend
 )
 
 const isBusy = computed(() =>
@@ -20,6 +29,11 @@ const isBusy = computed(() =>
 const currentModelLabel = computed(() => {
   if (!chatStore.selectedModel) return t('chat.selectModel')
   return chatStore.selectedModel
+})
+
+const currentKeyLabel = computed(() => {
+  const key = chatStore.availableKeys.find(item => item.id === chatStore.selectedKeyId)
+  return key?.name || 'API Key'
 })
 
 function handleKeydown(e: KeyboardEvent) {
@@ -32,15 +46,19 @@ function handleKeydown(e: KeyboardEvent) {
 async function send() {
   if (!canSend.value) return
   const content = inputText.value.trim()
+  const outgoingAttachments = attachments.value.map(item => ({ ...item }))
   inputText.value = ''
+  attachments.value = []
+  attachmentError.value = ''
+  if (fileInputRef.value) fileInputRef.value.value = ''
   if (textareaRef.value) {
     textareaRef.value.style.height = 'auto'
   }
 
   if (chatStore.isImageModel) {
-    await chatStore.generateImageMessage(content)
+    await chatStore.generateImageMessage(content, '1024x1024', 1, outgoingAttachments)
   } else {
-    await chatStore.sendMessage(content)
+    await chatStore.sendMessage(content, outgoingAttachments)
   }
 }
 
@@ -55,19 +73,161 @@ function selectModel(model: string) {
   showModelDropdown.value = false
 }
 
-function handleClickOutside(e: MouseEvent) {
-  const target = e.target as HTMLElement
-  if (!target.closest('.model-selector')) {
-    showModelDropdown.value = false
+async function selectKey(keyId: number) {
+  showKeyDropdown.value = false
+  await chatStore.selectKey(keyId)
+}
+
+function updateDropdownPosition(button: HTMLButtonElement | null, target: typeof dropdownStyle) {
+  if (!button) return
+  const rect = button.getBoundingClientRect()
+  const width = Math.max(rect.width, 260)
+  const left = Math.min(rect.left, window.innerWidth - width - 12)
+  target.value = {
+    position: 'fixed',
+    left: `${Math.max(12, left)}px`,
+    bottom: `${window.innerHeight - rect.top + 8}px`,
+    width: `${width}px`
   }
+}
+
+async function toggleModelDropdown() {
+  if (isBusy.value) return
+  showKeyDropdown.value = false
+  showModelDropdown.value = !showModelDropdown.value
+  if (showModelDropdown.value) {
+    await nextTick()
+    updateDropdownPosition(modelButtonRef.value, dropdownStyle)
+  }
+}
+
+async function toggleKeyDropdown() {
+  if (isBusy.value) return
+  showModelDropdown.value = false
+  showKeyDropdown.value = !showKeyDropdown.value
+  if (showKeyDropdown.value) {
+    await nextTick()
+    updateDropdownPosition(keyButtonRef.value, keyDropdownStyle)
+  }
+}
+
+function closeDropdowns(e: MouseEvent) {
+  const target = e.target as HTMLElement
+  if (!target.closest('.chat-floating-dropdown') && !target.closest('.selector-btn')) {
+    showModelDropdown.value = false
+    showKeyDropdown.value = false
+  }
+}
+
+function handleWindowChange() {
+  showModelDropdown.value = false
+  showKeyDropdown.value = false
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('click', closeDropdowns)
+  window.addEventListener('resize', handleWindowChange)
+  window.addEventListener('scroll', handleWindowChange, true)
+}
+
+onBeforeUnmount(() => {
+  if (typeof window === 'undefined') return
+  window.removeEventListener('click', closeDropdowns)
+  window.removeEventListener('resize', handleWindowChange)
+  window.removeEventListener('scroll', handleWindowChange, true)
+})
+
+function openFilePicker() {
+  if (isBusy.value) return
+  fileInputRef.value?.click()
+}
+
+async function handleFileChange(e: Event) {
+  const input = e.target as HTMLInputElement
+  const files = Array.from(input.files || [])
+  attachmentError.value = ''
+  for (const file of files) {
+    try {
+      attachments.value.push(await readAttachment(file))
+    } catch (error) {
+      attachmentError.value = error instanceof Error ? error.message : String(error)
+    }
+  }
+  input.value = ''
+}
+
+function removeAttachment(index: number) {
+  attachments.value.splice(index, 1)
+}
+
+async function readAttachment(file: File): Promise<ChatAttachment> {
+  const maxSize = 8 * 1024 * 1024
+  if (file.size > maxSize) {
+    throw new Error(`${file.name} is larger than 8MB`)
+  }
+
+  if (file.type.startsWith('image/')) {
+    return {
+      name: file.name,
+      mime_type: file.type,
+      type: 'image',
+      data_url: await readAsDataURL(file)
+    }
+  }
+
+  const lowerName = file.name.toLowerCase()
+  if (lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls')) {
+    const XLSX = await import('xlsx')
+    const data = await file.arrayBuffer()
+    const workbook = XLSX.read(data, { type: 'array' })
+    const sheets = workbook.SheetNames.map(name => {
+      const csv = XLSX.utils.sheet_to_csv(workbook.Sheets[name])
+      return `# Sheet: ${name}\n${csv}`
+    })
+    return {
+      name: file.name,
+      mime_type: file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      type: 'text',
+      content: sheets.join('\n\n')
+    }
+  }
+
+  const textLike = file.type.startsWith('text/') ||
+    ['.txt', '.md', '.csv', '.json', '.xml', '.yaml', '.yml', '.log', '.ts', '.js', '.vue', '.go', '.py', '.java', '.sql'].some(ext => lowerName.endsWith(ext))
+  if (textLike) {
+    return {
+      name: file.name,
+      mime_type: file.type || 'text/plain',
+      type: 'text',
+      content: await file.text()
+    }
+  }
+
+  throw new Error(`${file.name} is not supported yet`)
+}
+
+function readAsDataURL(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result || ''))
+    reader.onerror = () => reject(new Error(`Failed to read ${file.name}`))
+    reader.readAsDataURL(file)
+  })
 }
 </script>
 
 <template>
-  <div class="composer-container" @click.capture="handleClickOutside">
+  <div class="composer-container">
     <div class="composer-wrapper">
       <div class="composer" :class="{ focused: false, 'image-mode': chatStore.isImageModel }">
-        <!-- Textarea -->
+        <div v-if="attachments.length > 0" class="attachment-list">
+          <div v-for="(attachment, index) in attachments" :key="`${attachment.name}-${index}`" class="attachment-chip">
+            <span class="attachment-icon">{{ attachment.type === 'image' ? 'IMG' : 'TXT' }}</span>
+            <span class="attachment-name" :title="attachment.name">{{ attachment.name }}</span>
+            <button class="attachment-remove" type="button" @click="removeAttachment(index)" :disabled="isBusy">×</button>
+          </div>
+        </div>
+
         <textarea
           ref="textareaRef"
           v-model="inputText"
@@ -79,52 +239,59 @@ function handleClickOutside(e: MouseEvent) {
           class="composer-textarea"
         ></textarea>
 
-        <!-- Bottom toolbar -->
         <div class="composer-toolbar">
-          <!-- Left: Model selector + Key selector -->
           <div class="toolbar-left">
-            <!-- Model selector -->
-            <div class="model-selector" v-if="chatStore.availableModels.length > 0">
+            <button
+              class="tool-btn"
+              type="button"
+              @click="openFilePicker"
+              :disabled="isBusy"
+              title="Upload attachment"
+            >
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
+              </svg>
+            </button>
+            <input
+              ref="fileInputRef"
+              type="file"
+              multiple
+              class="file-input"
+              accept="image/*,.txt,.md,.csv,.json,.xml,.yaml,.yml,.log,.ts,.js,.vue,.go,.py,.java,.sql,.xlsx,.xls"
+              @change="handleFileChange"
+            />
+
+            <div class="selector-group" v-if="chatStore.availableModels.length > 0">
               <button
-                class="model-btn"
-                @click.stop="showModelDropdown = !showModelDropdown"
+                ref="modelButtonRef"
+                class="selector-btn model-btn"
+                type="button"
+                @click.stop="toggleModelDropdown"
                 :disabled="isBusy"
               >
-                <span class="model-label">{{ currentModelLabel }}</span>
+                <span class="selector-label">{{ currentModelLabel }}</span>
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M6 9l6 6 6-6" />
                 </svg>
               </button>
-
-              <!-- Dropdown -->
-              <div class="model-dropdown" v-show="showModelDropdown">
-                <div
-                  v-for="model in chatStore.availableModels"
-                  :key="model"
-                  class="model-option"
-                  :class="{ active: model === chatStore.selectedModel }"
-                  @click="selectModel(model)"
-                >
-                  {{ model }}
-                </div>
-              </div>
             </div>
 
-            <!-- Key selector (compact) -->
-            <select
-              v-if="chatStore.availableKeys.length > 1"
-              :value="chatStore.selectedKeyId || ''"
-              @change="chatStore.selectKey(Number(($event.target as HTMLSelectElement).value))"
-              class="key-select"
-              :disabled="isBusy"
-            >
-              <option v-for="key in chatStore.availableKeys" :key="key.id" :value="key.id">
-                {{ key.name }}
-              </option>
-            </select>
+            <div class="selector-group" v-if="chatStore.availableKeys.length > 1">
+              <button
+                ref="keyButtonRef"
+                class="selector-btn key-btn"
+                type="button"
+                @click.stop="toggleKeyDropdown"
+                :disabled="isBusy"
+              >
+                <span class="selector-label">{{ currentKeyLabel }}</span>
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </button>
+            </div>
           </div>
 
-          <!-- Right: Send/Stop button -->
           <div class="toolbar-right">
             <button
               v-if="chatStore.isStreaming"
@@ -158,8 +325,38 @@ function handleClickOutside(e: MouseEvent) {
         </div>
       </div>
 
+      <p v-if="attachmentError" class="attachment-error">{{ attachmentError }}</p>
       <p class="composer-hint">{{ t('chat.inputHint') }}</p>
     </div>
+
+    <Teleport to="body">
+      <div v-if="showModelDropdown" class="chat-floating-dropdown" :style="dropdownStyle" @click.stop>
+        <button
+          v-for="model in chatStore.availableModels"
+          :key="model"
+          type="button"
+          class="dropdown-option"
+          :class="{ active: model === chatStore.selectedModel }"
+          @click="selectModel(model)"
+        >
+          <span>{{ model }}</span>
+        </button>
+      </div>
+
+      <div v-if="showKeyDropdown" class="chat-floating-dropdown key-dropdown" :style="keyDropdownStyle" @click.stop>
+        <button
+          v-for="key in chatStore.availableKeys"
+          :key="key.id"
+          type="button"
+          class="dropdown-option key-option"
+          :class="{ active: key.id === chatStore.selectedKeyId }"
+          @click="selectKey(key.id)"
+        >
+          <span class="key-name">{{ key.name }}</span>
+          <span class="key-meta">{{ key.group_name || key.platform }}</span>
+        </button>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -181,7 +378,6 @@ function handleClickOutside(e: MouseEvent) {
   background: var(--color-bg-primary, #ffffff);
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.04);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
-  overflow: hidden;
 }
 
 .composer:focus-within {
@@ -191,6 +387,52 @@ function handleClickOutside(e: MouseEvent) {
 
 .composer.image-mode:focus-within {
   border-color: #a855f7;
+}
+
+.attachment-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 12px 0;
+}
+
+.attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  padding: 5px 8px;
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 999px;
+  background: var(--color-bg-secondary, #f9fafb);
+  color: var(--color-text-secondary, #6b7280);
+  font-size: 12px;
+}
+
+.attachment-icon {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-primary, #6366f1);
+}
+
+.attachment-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-remove {
+  border: none;
+  background: transparent;
+  color: var(--color-text-tertiary, #9ca3af);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.attachment-remove:hover:not(:disabled) {
+  color: var(--color-danger, #ef4444);
 }
 
 .composer-textarea {
@@ -217,6 +459,7 @@ function handleClickOutside(e: MouseEvent) {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
   padding: 8px 12px;
 }
 
@@ -224,105 +467,122 @@ function handleClickOutside(e: MouseEvent) {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .toolbar-right {
   display: flex;
   align-items: center;
+  flex-shrink: 0;
 }
 
-/* Model selector */
-.model-selector {
-  position: relative;
+.file-input {
+  display: none;
 }
 
-.model-btn {
+.tool-btn,
+.selector-btn {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
+  justify-content: center;
   border: 1px solid var(--color-border, #e5e7eb);
   border-radius: 8px;
   background: var(--color-bg-secondary, #f9fafb);
   color: var(--color-text-secondary, #6b7280);
-  font-size: 13px;
   cursor: pointer;
   transition: all 0.15s ease;
-  white-space: nowrap;
-  max-width: 180px;
 }
 
-.model-btn:hover:not(:disabled) {
+.tool-btn {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+}
+
+.selector-btn {
+  gap: 4px;
+  min-width: 0;
+  max-width: 210px;
+  padding: 5px 10px;
+  font-size: 13px;
+}
+
+.selector-btn:hover:not(:disabled),
+.tool-btn:hover:not(:disabled) {
   border-color: var(--color-text-tertiary, #9ca3af);
   color: var(--color-text-primary, #1f2937);
 }
 
-.model-btn:disabled {
+.selector-btn:disabled,
+.tool-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.model-label {
+.selector-label {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.model-dropdown {
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 0;
-  min-width: 200px;
-  max-height: 280px;
+.chat-floating-dropdown {
+  max-height: min(320px, 50vh);
   overflow-y: auto;
   background: var(--color-bg-primary, #ffffff);
   border: 1px solid var(--color-border, #e5e7eb);
-  border-radius: 10px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-  z-index: 50;
-  padding: 4px;
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16);
+  z-index: 9999;
+  padding: 6px;
 }
 
-.model-option {
-  padding: 8px 12px;
-  font-size: 13px;
+.dropdown-option {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  padding: 9px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
   color: var(--color-text-primary, #1f2937);
-  border-radius: 6px;
   cursor: pointer;
+  font-size: 13px;
+  text-align: left;
   transition: background 0.1s ease;
 }
 
-.model-option:hover {
+.dropdown-option:hover {
   background: var(--color-bg-hover, rgba(0, 0, 0, 0.04));
 }
 
-.model-option.active {
+.dropdown-option.active {
   background: var(--color-primary-bg, rgba(99, 102, 241, 0.08));
   color: var(--color-primary, #6366f1);
   font-weight: 500;
 }
 
-/* Key selector */
-.key-select {
-  padding: 4px 24px 4px 8px;
-  border: 1px solid var(--color-border, #e5e7eb);
-  border-radius: 8px;
-  background: var(--color-bg-secondary, #f9fafb);
-  color: var(--color-text-secondary, #6b7280);
-  font-size: 13px;
-  cursor: pointer;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M3 4.5L6 8l3-3.5'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 6px center;
-  max-width: 140px;
+.key-option {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.key-select:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.key-name,
+.key-meta {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* Action buttons */
+.key-meta {
+  color: var(--color-text-tertiary, #9ca3af);
+  font-size: 12px;
+  font-weight: 400;
+}
+
 .action-btn {
   display: flex;
   align-items: center;
@@ -378,11 +638,19 @@ function handleClickOutside(e: MouseEvent) {
   to { transform: rotate(360deg); }
 }
 
-.composer-hint {
+.composer-hint,
+.attachment-error {
   font-size: 11px;
-  color: var(--color-text-tertiary, #9ca3af);
   text-align: center;
   margin: 6px 0 0;
+}
+
+.composer-hint {
+  color: var(--color-text-tertiary, #9ca3af);
+}
+
+.attachment-error {
+  color: var(--color-danger, #ef4444);
 }
 
 @media (max-width: 768px) {
@@ -390,8 +658,12 @@ function handleClickOutside(e: MouseEvent) {
     padding: 0 12px 12px;
   }
 
-  .model-btn {
+  .selector-btn {
     max-width: 140px;
+  }
+
+  .key-btn {
+    max-width: 110px;
   }
 }
 </style>

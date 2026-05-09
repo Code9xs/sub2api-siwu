@@ -32,6 +32,14 @@ export interface ChatMessage {
   created_at: string
 }
 
+export interface ChatAttachment {
+  name: string
+  mime_type: string
+  type: 'text' | 'image'
+  content?: string
+  data_url?: string
+}
+
 export interface ChatAvailableKey {
   id: number
   name: string
@@ -147,12 +155,14 @@ export interface ImageGenerateResponse {
 export async function generateImage(
   conversationId: number,
   prompt: string,
+  model: string,
   size = '1024x1024',
-  n = 1
+  n = 1,
+  attachments: ChatAttachment[] = []
 ): Promise<ImageGenerateResponse> {
   const { data } = await apiClient.post(
     `/chat/conversations/${conversationId}/images`,
-    { prompt, size, n }
+    { prompt, model, size, n, attachments }
   )
   return data
 }

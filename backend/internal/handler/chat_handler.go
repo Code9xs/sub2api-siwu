@@ -42,8 +42,9 @@ type UpdateConversationRequest struct {
 
 // SendMessageRequest represents the send message payload.
 type ChatSendMessageRequest struct {
-	Content string `json:"content" binding:"required"`
-	Model   string `json:"model"`
+	Content     string                   `json:"content"`
+	Model       string                   `json:"model"`
+	Attachments []service.ChatAttachment `json:"attachments"`
 }
 
 // ListConversations handles GET /api/v1/chat/conversations
@@ -196,7 +197,7 @@ func (h *ChatHandler) SendMessage(c *gin.Context) {
 	// Create SSE writer
 	flusher := &ginSSEWriter{writer: c.Writer}
 
-	err = h.chatService.SendMessage(c.Request.Context(), subject.UserID, convID, req.Content, req.Model, flusher, h.gatewayBaseURL)
+	err = h.chatService.SendMessage(c.Request.Context(), subject.UserID, convID, req.Content, req.Model, req.Attachments, flusher, h.gatewayBaseURL)
 	if err != nil {
 		// If we haven't started streaming yet, we can write an error event
 		fmt.Fprintf(flusher, "data: {\"error\": \"%s\"}\n\n", err.Error())
@@ -275,9 +276,11 @@ func (h *ChatHandler) GetModelsForKey(c *gin.Context) {
 
 // ChatGenerateImageRequest represents the image generation payload.
 type ChatGenerateImageRequest struct {
-	Prompt string `json:"prompt" binding:"required"`
-	Size   string `json:"size"`
-	N      int    `json:"n"`
+	Prompt      string                   `json:"prompt"`
+	Model       string                   `json:"model"`
+	Size        string                   `json:"size"`
+	N           int                      `json:"n"`
+	Attachments []service.ChatAttachment `json:"attachments"`
 }
 
 // GenerateImage handles POST /api/v1/chat/conversations/:id/images
@@ -305,9 +308,11 @@ func (h *ChatHandler) GenerateImage(c *gin.Context) {
 		subject.UserID,
 		convID,
 		service.ImageGenerateRequest{
-			Prompt: req.Prompt,
-			Size:   req.Size,
-			N:      req.N,
+			Prompt:      req.Prompt,
+			Model:       req.Model,
+			Size:        req.Size,
+			N:           req.N,
+			Attachments: req.Attachments,
 		},
 		h.gatewayBaseURL,
 	)

@@ -6,10 +6,10 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import * as chatApi from '@/api/chat'
-import type { Conversation, ChatMessage, ChatAvailableKey } from '@/api/chat'
+import type { Conversation, ChatMessage, ChatAvailableKey, ChatAttachment } from '@/api/chat'
 import { useSSE } from '@/composables/useSSE'
 
-const IMAGE_MODELS = ['gpt-image-1']
+const IMAGE_MODELS = ['gpt-image-1', 'gpt-image-1.5', 'gpt-image-2']
 
 export const useChatStore = defineStore('chat', () => {
   // ==================== State ====================
@@ -219,8 +219,8 @@ export const useChatStore = defineStore('chat', () => {
   /**
    * Send a message and stream the response
    */
-  async function sendMessage(content: string) {
-    if (!canSend.value || !content.trim()) return
+  async function sendMessage(content: string, attachments: ChatAttachment[] = []) {
+    if (!canSend.value || (!content.trim() && attachments.length === 0)) return
 
     // Create conversation if none is active
     if (!activeConversationId.value) {
@@ -230,16 +230,19 @@ export const useChatStore = defineStore('chat', () => {
 
     const conversationId = activeConversationId.value!
 
+    const displayContent = buildDisplayContent(content, attachments)
+
     // Add user message to display immediately
     const userMessage: ChatMessage = {
       id: Date.now(), // Temporary ID
       conversation_id: conversationId,
       role: 'user',
-      content: content.trim(),
+      content: displayContent,
       content_type: 'text',
       model: selectedModel.value,
       tokens_used: 0,
       cost_usd: 0,
+      metadata: attachments.length > 0 ? { attachments: summarizeAttachments(attachments) } : undefined,
       created_at: new Date().toISOString()
     }
     messages.value.push(userMessage)
@@ -250,7 +253,8 @@ export const useChatStore = defineStore('chat', () => {
       `/chat/conversations/${conversationId}/messages`,
       {
         content: content.trim(),
-        model: selectedModel.value
+        model: selectedModel.value,
+        attachments
       },
       {
         onDelta(delta) {
@@ -308,8 +312,8 @@ export const useChatStore = defineStore('chat', () => {
   /**
    * Generate image in the current conversation
    */
-  async function generateImageMessage(prompt: string, size = '1024x1024', n = 1) {
-    if (!selectedKeyId.value || !prompt.trim()) return
+  async function generateImageMessage(prompt: string, size = '1024x1024', n = 1, attachments: ChatAttachment[] = []) {
+    if (!selectedKeyId.value || (!prompt.trim() && attachments.length === 0)) return
 
     // Create conversation if none is active
     if (!activeConversationId.value) {
@@ -319,23 +323,26 @@ export const useChatStore = defineStore('chat', () => {
 
     const conversationId = activeConversationId.value!
 
+    const displayContent = buildDisplayContent(prompt, attachments)
+
     // Add user message optimistically
     const userMessage: ChatMessage = {
       id: Date.now(),
       conversation_id: conversationId,
       role: 'user',
-      content: prompt.trim(),
+      content: displayContent,
       content_type: 'text',
       model: 'gpt-image-1',
       tokens_used: 0,
       cost_usd: 0,
+      metadata: attachments.length > 0 ? { attachments: summarizeAttachments(attachments) } : undefined,
       created_at: new Date().toISOString()
     }
     messages.value.push(userMessage)
 
     isGeneratingImage.value = true
     try {
-      const result = await chatApi.generateImage(conversationId, prompt.trim(), size, n)
+      const result = await chatApi.generateImage(conversationId, prompt.trim(), selectedModel.value, size, n, attachments)
 
       // Add assistant message with image URLs
       const assistantMsg: ChatMessage = {
@@ -363,6 +370,21 @@ export const useChatStore = defineStore('chat', () => {
     } finally {
       isGeneratingImage.value = false
     }
+  }
+
+  function summarizeAttachments(attachments: ChatAttachment[]) {
+    return attachments.map(attachment => ({
+      name: attachment.name,
+      mime_type: attachment.mime_type,
+      type: attachment.type
+    }))
+  }
+
+  function buildDisplayContent(content: string, attachments: ChatAttachment[]) {
+    if (attachments.length === 0) return content.trim()
+    const names = attachments.map(attachment => `- ${attachment.name}`).join('\n')
+    const prompt = content.trim()
+    return prompt ? `${prompt}\n\nAttachments:\n${names}` : `Attachments:\n${names}`
   }
 
   /**

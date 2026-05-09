@@ -110,6 +110,10 @@ func (r *ChatRepository) UpdateConversationLastMessageAt(ctx context.Context, id
 }
 
 func (r *ChatRepository) CreateMessage(ctx context.Context, conversationID int64, role, content, contentType, model string, tokensUsed int, costUSD float64) (*service.ChatMessage, error) {
+	return r.CreateMessageWithDetails(ctx, conversationID, role, content, contentType, model, tokensUsed, costUSD, nil, nil)
+}
+
+func (r *ChatRepository) CreateMessageWithDetails(ctx context.Context, conversationID int64, role, content, contentType, model string, tokensUsed int, costUSD float64, imageURLs []string, metadata map[string]interface{}) (*service.ChatMessage, error) {
 	builder := r.client.Message.
 		Create().
 		SetConversationID(conversationID).
@@ -120,6 +124,12 @@ func (r *ChatRepository) CreateMessage(ctx context.Context, conversationID int64
 		SetCostUsd(costUSD)
 	if model != "" {
 		builder.SetModel(model)
+	}
+	if len(imageURLs) > 0 {
+		builder.SetImageUrls(imageURLs)
+	}
+	if len(metadata) > 0 {
+		builder.SetMetadata(metadata)
 	}
 	msg, err := builder.Save(ctx)
 	if err != nil {
