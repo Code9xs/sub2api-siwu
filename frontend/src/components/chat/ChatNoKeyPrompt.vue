@@ -8,7 +8,7 @@ import { useRouter } from 'vue-router'
 const router = useRouter()
 
 function goToKeys() {
-  router.push('/keys')
+  router.push({ path: '/keys', query: { create: '1' } })
 }
 </script>
 

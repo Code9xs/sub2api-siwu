@@ -1049,10 +1049,13 @@
 	import { useI18n } from 'vue-i18n'
 	import { useAppStore } from '@/stores/app'
 	import { useOnboardingStore } from '@/stores/onboarding'
+	import { useRoute, useRouter } from 'vue-router'
 	import { useClipboard } from '@/composables/useClipboard'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 
 const { t } = useI18n()
+const route = useRoute()
+const router = useRouter()
 import { keysAPI, authAPI, usageAPI, userGroupsAPI } from '@/api'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
@@ -1805,6 +1808,10 @@ onMounted(() => {
   loadGroups()
   loadUserGroupRates()
   loadPublicSettings()
+  if (route.query.create === '1') {
+    showCreateModal.value = true
+    router.replace({ path: route.path, query: { ...route.query, create: undefined } })
+  }
   document.addEventListener('click', closeGroupSelector)
   resetTimer = setInterval(() => { now.value = new Date() }, 60000)
 })

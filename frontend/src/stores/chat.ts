@@ -65,9 +65,14 @@ export const useChatStore = defineStore('chat', () => {
     keysLoading.value = true
     try {
       availableKeys.value = await chatApi.getAvailableKeys()
-      if (availableKeys.value.length === 1 && !selectedKeyId.value) {
-        selectedKeyId.value = availableKeys.value[0].id
-        await loadModelsForKey(availableKeys.value[0].id)
+      const selectedKeyExists = availableKeys.value.some(key => key.id === selectedKeyId.value)
+      if (availableKeys.value.length > 0 && (!selectedKeyId.value || !selectedKeyExists)) {
+        await selectKey(availableKeys.value[0].id)
+      }
+      if (availableKeys.value.length === 0) {
+        selectedKeyId.value = null
+        selectedModel.value = ''
+        availableModels.value = []
       }
     } catch (error) {
       console.error('Failed to load available keys:', error)
