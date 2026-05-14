@@ -21,11 +21,68 @@ import type {
  */
 export type LoginResponse = AuthResponse | TotpLoginResponse
 
+interface LoginPasswordKeyResponse {
+  key_id: string
+  algorithm: 'RSA-OAEP-256'
+  public_key: string
+  public_key_der: string
+}
+
 /**
  * Type guard to check if login response requires 2FA
  */
 export function isTotp2FARequired(response: LoginResponse): response is TotpLoginResponse {
   return 'requires_2fa' in response && response.requires_2fa === true
+}
+
+function base64ToArrayBuffer(base64: string): ArrayBuffer {
+  const binary = atob(base64.replace(/\s/g, ''))
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i)
+  }
+  return bytes.buffer
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte)
+  }
+  return btoa(binary).replace(/=+$/, '')
+}
+
+async function encryptLoginPassword(password: string) {
+  if (!globalThis.crypto?.subtle) {
+    throw new Error('Secure password encryption is not supported by this browser')
+  }
+
+  const { data: key } = await apiClient.get<LoginPasswordKeyResponse>('/auth/login-password-key')
+  if (key.algorithm !== 'RSA-OAEP-256') {
+    throw new Error('Unsupported login password encryption algorithm')
+  }
+
+  const publicKey = await globalThis.crypto.subtle.importKey(
+    'spki',
+    base64ToArrayBuffer(key.public_key_der),
+    {
+      name: 'RSA-OAEP',
+      hash: 'SHA-256'
+    },
+    false,
+    ['encrypt']
+  )
+  const ciphertext = await globalThis.crypto.subtle.encrypt(
+    { name: 'RSA-OAEP' },
+    publicKey,
+    new TextEncoder().encode(password)
+  )
+
+  return {
+    password_encrypted: arrayBufferToBase64(ciphertext),
+    password_key_id: key.key_id
+  }
 }
 
 /**
@@ -89,7 +146,12 @@ export function clearAuthToken(): void {
  * @returns Authentication response with token and user data, or 2FA required response
  */
 export async function login(credentials: LoginRequest): Promise<LoginResponse> {
-  const { data } = await apiClient.post<LoginResponse>('/auth/login', credentials)
+  const { password, ...rest } = credentials
+  const encryptedPassword = await encryptLoginPassword(password)
+  const { data } = await apiClient.post<LoginResponse>('/auth/login', {
+    ...rest,
+    ...encryptedPassword
+  })
 
   // Only store token if 2FA is not required
   if (!isTotp2FARequired(data)) {

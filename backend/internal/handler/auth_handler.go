@@ -65,9 +65,11 @@ type SendVerifyCodeResponse struct {
 
 // LoginRequest represents the login request payload
 type LoginRequest struct {
-	Email          string `json:"email" binding:"required,email"`
-	Password       string `json:"password" binding:"required"`
-	TurnstileToken string `json:"turnstile_token"`
+	Email             string `json:"email" binding:"required,email"`
+	Password          string `json:"password"`
+	PasswordEncrypted string `json:"password_encrypted"`
+	PasswordKeyID     string `json:"password_key_id"`
+	TurnstileToken    string `json:"turnstile_token"`
 }
 
 // AuthResponse 认证响应格式（匹配前端期望）
@@ -218,13 +220,19 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	password, err := h.decryptLoginPassword(req)
+	if err != nil {
+		response.BadRequest(c, "Invalid login password payload")
+		return
+	}
+
 	// Turnstile 验证
 	if err := h.authService.VerifyTurnstile(c.Request.Context(), req.TurnstileToken, ip.GetClientIP(c)); err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
 
-	token, user, err := h.authService.Login(c.Request.Context(), req.Email, req.Password)
+	token, user, err := h.authService.Login(c.Request.Context(), req.Email, password)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -256,6 +264,20 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	h.authService.RecordSuccessfulLogin(c.Request.Context(), user.ID)
 
 	h.respondWithTokenPair(c, user)
+}
+
+func (h *AuthHandler) GetLoginPasswordKey(c *gin.Context) {
+	response.Success(c, defaultLoginPasswordCrypto.PublicKey())
+}
+
+func (h *AuthHandler) decryptLoginPassword(req LoginRequest) (string, error) {
+	if req.Password != "" {
+		return "", infraerrors.BadRequest("LOGIN_PASSWORD_PLAINTEXT_REJECTED", "plaintext login password is not accepted")
+	}
+	if strings.TrimSpace(req.PasswordEncrypted) == "" || strings.TrimSpace(req.PasswordKeyID) == "" {
+		return "", infraerrors.BadRequest("LOGIN_PASSWORD_ENCRYPTION_REQUIRED", "encrypted login password is required")
+	}
+	return defaultLoginPasswordCrypto.Decrypt(req.PasswordKeyID, req.PasswordEncrypted)
 }
 
 // TotpLoginResponse represents the response when 2FA is required
