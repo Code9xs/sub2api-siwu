@@ -5,7 +5,7 @@ export const PROJECT_EXTENSION = '.opsdraw.json';
 
 export function downloadTextFile(
   filename: string,
-  contents: string,
+  contents: BlobPart,
   mimeType = 'application/json',
 ): void {
   const blob = new Blob([contents], { type: mimeType });

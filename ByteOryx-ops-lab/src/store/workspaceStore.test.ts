@@ -29,6 +29,32 @@ describe('workspace store', () => {
     expect(useWorkspaceStore.getState().project.assets).toEqual([importedAsset]);
   });
 
+  it('adds and deletes manual assets', () => {
+    const assetId = useWorkspaceStore.getState().addAsset({
+      name: 'nginx-01',
+      type: 'Nginx服务器',
+      ip: '10.0.3.10',
+      zone: 'dmz',
+      tags: ['gateway'],
+      vendor: 'OpenResty',
+      description: 'Ingress gateway',
+    });
+
+    expect(useWorkspaceStore.getState().project.assets).toEqual([
+      expect.objectContaining({
+        id: assetId,
+        name: 'nginx-01',
+        type: 'Nginx服务器',
+        source: 'manual',
+      }),
+    ]);
+
+    useWorkspaceStore.getState().deleteAsset(assetId);
+
+    expect(useWorkspaceStore.getState().project.assets).toEqual([]);
+    expect(useWorkspaceStore.getState().saveStatus).toBe('dirty');
+  });
+
   it('places an imported asset on the active diagram', () => {
     const store = useWorkspaceStore.getState();
     store.importAssets([importedAsset]);
@@ -54,6 +80,31 @@ describe('workspace store', () => {
         vendor: 'ByteOryx',
         description: 'Core aggregation switch',
         tags: ['core', 'network'],
+      },
+    });
+  });
+
+  it('applies type-specific node styling when placing imported assets', () => {
+    const redisAsset = {
+      ...importedAsset,
+      id: 'asset-redis' as DomainId<'asset'>,
+      name: 'redis-01',
+      type: 'Redis服务器',
+    };
+    useWorkspaceStore.getState().importAssets([redisAsset]);
+
+    const nodeId = useWorkspaceStore.getState().placeAssetOnCanvas(redisAsset.id, { x: 120, y: 80 });
+
+    const node = useWorkspaceStore
+      .getState()
+      .activeDiagram()
+      .nodes.find((candidate) => candidate.id === nodeId);
+    expect(node).toMatchObject({
+      type: 'Redis服务器',
+      style: {
+        fill: '#fef2f2',
+        stroke: '#dc2626',
+        textColor: '#450a0a',
       },
     });
   });
@@ -148,6 +199,21 @@ describe('workspace store', () => {
       x: -120,
       y: 48,
       zoom: 1.5,
+    });
+    expect(useWorkspaceStore.getState().saveStatus).toBe('dirty');
+  });
+
+  it('toggles canvas grid positioning settings together', () => {
+    expect(useWorkspaceStore.getState().project.settings).toMatchObject({
+      showGrid: true,
+      snapToGrid: true,
+    });
+
+    useWorkspaceStore.getState().setGridPositioning(false);
+
+    expect(useWorkspaceStore.getState().project.settings).toMatchObject({
+      showGrid: false,
+      snapToGrid: false,
     });
     expect(useWorkspaceStore.getState().saveStatus).toBe('dirty');
   });

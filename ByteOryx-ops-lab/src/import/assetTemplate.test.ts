@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
+import * as XLSX from 'xlsx';
 
 import { downloadAssetImportTemplate } from './assetTemplate';
 
 describe('asset import template', () => {
-  it('downloads a CSV template with supported asset fields and examples', () => {
+  it('downloads an XLSX template with Chinese headers, examples, and type options', () => {
     let downloadedFilename = '';
     let blobParts: BlobPart[] | undefined;
     let blobType = '';
@@ -35,12 +36,38 @@ describe('asset import template', () => {
 
     downloadAssetImportTemplate();
 
-    const csv = blobParts?.join('');
-    expect(downloadedFilename).toBe('ops-assets-template.csv');
-    expect(blobType).toBe('text/csv;charset=utf-8');
-    expect(csv).toContain('name,type,ip,zone,tags,vendor,description');
-    expect(csv).toContain('core-sw-01,switch,10.0.0.1');
+    const workbook = XLSX.read(blobParts?.[0], { type: 'array' });
+    const rows = XLSX.utils.sheet_to_json<Record<string, string>>(workbook.Sheets['资产导入模板'], {
+      defval: '',
+      raw: false,
+    });
+    const typeRows = XLSX.utils.sheet_to_json<Record<string, string>>(workbook.Sheets['类型选项'], {
+      defval: '',
+      raw: false,
+    });
+
+    expect(downloadedFilename).toBe('ops-assets-template.xlsx');
+    expect(blobType).toBe(
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    expect(Object.keys(rows[0])).toEqual([
+      '名称',
+      '类型',
+      'IP地址',
+      '区域',
+      '标签',
+      '厂商',
+      '描述',
+    ]);
+    expect(rows[0]).toMatchObject({
+      名称: 'app-01',
+      类型: '应用服务器',
+      IP地址: '10.0.1.10',
+    });
+    expect(typeRows.map((row) => row['类型'])).toEqual(
+      expect.arrayContaining(['应用服务器', '数据库服务器', 'Elasticsearch服务器', 'Redis服务器']),
+    );
 
     vi.unstubAllGlobals();
-});
+  });
 });

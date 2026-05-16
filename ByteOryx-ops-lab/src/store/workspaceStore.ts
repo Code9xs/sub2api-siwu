@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
 import { createId } from '../domain/ids';
+import { getAssetTypeDefinition } from '../domain/assetTypes';
 import { createProject } from '../domain/projectFactory';
 import type {
   Asset,
@@ -26,6 +27,8 @@ interface ManualNodeInput {
   metadata?: DiagramNode['metadata'];
 }
 
+type AssetInput = Omit<Asset, 'id' | 'source' | 'createdAt' | 'updatedAt'>;
+
 interface WorkspaceClipboard {
   nodes: DiagramNode[];
   edges: DiagramEdge[];
@@ -41,6 +44,8 @@ interface WorkspaceState {
   loadProject: (project: OpsProject) => void;
   activeDiagram: () => Diagram;
   importAssets: (assets: Asset[]) => void;
+  addAsset: (input: AssetInput) => DomainId<'asset'>;
+  deleteAsset: (assetId: DomainId<'asset'>) => void;
   placeAssetOnCanvas: (assetId: DomainId<'asset'>, position: Point) => DomainId<'node'>;
   addManualNode: (input: ManualNodeInput) => DomainId<'node'>;
   connectNodes: (
@@ -50,6 +55,7 @@ interface WorkspaceState {
   updateNode: (nodeId: DomainId<'node'>, updates: Partial<Omit<DiagramNode, 'id'>>) => void;
   updateEdge: (edgeId: DomainId<'edge'>, updates: Partial<Omit<DiagramEdge, 'id'>>) => void;
   updateViewport: (viewport: DiagramViewport) => void;
+  setGridPositioning: (enabled: boolean) => void;
   deleteSelection: () => void;
   copySelection: () => void;
   pasteClipboard: () => DomainId<'node'>[];
@@ -207,6 +213,61 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     }));
   },
 
+  addAsset: (input) => {
+    const now = new Date().toISOString();
+    const assetId = createId('asset');
+    const asset: Asset = {
+      id: assetId,
+      name: input.name,
+      type: input.type,
+      ...(input.ip ? { ip: input.ip } : {}),
+      ...(input.zone ? { zone: input.zone } : {}),
+      tags: [...input.tags],
+      ...(input.vendor ? { vendor: input.vendor } : {}),
+      ...(input.description ? { description: input.description } : {}),
+      source: 'manual',
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    set(({ project }) => ({
+      project: markProjectDirty({
+        ...project,
+        assets: [...project.assets, asset],
+      }),
+      saveStatus: 'dirty',
+    }));
+
+    return assetId;
+  },
+
+  deleteAsset: (assetId) => {
+    set(({ project }) => ({
+      project: markProjectDirty({
+        ...project,
+        assets: project.assets.filter((asset) => asset.id !== assetId),
+        diagrams: project.diagrams.map((diagram) => ({
+          ...diagram,
+          nodes: diagram.nodes.filter((node) => node.assetId !== assetId),
+          edges: diagram.edges.filter((edge) => {
+            const remainingNodeIds = new Set(
+              diagram.nodes
+                .filter((node) => node.assetId !== assetId)
+                .map((node) => node.id),
+            );
+
+            return remainingNodeIds.has(edge.sourceNodeId) && remainingNodeIds.has(edge.targetNodeId);
+          }),
+        })),
+      }),
+      selectedNodeIds: get().selectedNodeIds.filter((nodeId) =>
+        get().activeDiagram().nodes.some((node) => node.id === nodeId),
+      ),
+      selectedEdgeIds: [],
+      saveStatus: 'dirty',
+    }));
+  },
+
   placeAssetOnCanvas: (assetId, position) => {
     const asset = get().project.assets.find((candidate) => candidate.id === assetId);
 
@@ -221,7 +282,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       name: asset.name,
       type: asset.type,
       position: clonePoint(position),
-      style: { ...defaultNodeStyle },
+      style: { ...defaultNodeStyle, ...getAssetTypeDefinition(asset.type).style },
       metadata: copyAssetMetadata(asset),
     };
 
@@ -342,6 +403,20 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
           viewport: clonedViewport,
         })),
       ),
+      saveStatus: 'dirty',
+    }));
+  },
+
+  setGridPositioning: (enabled) => {
+    set(({ project }) => ({
+      project: markProjectDirty({
+        ...project,
+        settings: {
+          ...project.settings,
+          showGrid: enabled,
+          snapToGrid: enabled,
+        },
+      }),
       saveStatus: 'dirty',
     }));
   },

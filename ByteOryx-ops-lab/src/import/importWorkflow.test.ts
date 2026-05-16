@@ -13,6 +13,7 @@ describe('asset import workflow', () => {
       '\u7c7b\u578b',
       '\u533a\u57df',
       '\u6807\u7b7e',
+      '\u5382\u5546',
       '\u5907\u6ce8',
     ]);
 
@@ -22,6 +23,7 @@ describe('asset import workflow', () => {
       type: '\u7c7b\u578b',
       zone: '\u533a\u57df',
       tags: '\u6807\u7b7e',
+      vendor: '\u5382\u5546',
       description: '\u5907\u6ce8',
     });
   });

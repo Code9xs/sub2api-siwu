@@ -34,6 +34,7 @@ export function DiagramCanvas() {
   const { screenToFlowPosition } = useReactFlow<OpsFlowNode, Edge>();
   const activeDiagram = useWorkspaceStore((state) => state.activeDiagram());
   const showGrid = useWorkspaceStore((state) => state.project.settings.showGrid);
+  const snapToGrid = useWorkspaceStore((state) => state.project.settings.snapToGrid);
   const selectedNodeIds = useWorkspaceStore((state) => state.selectedNodeIds);
   const selectedEdgeIds = useWorkspaceStore((state) => state.selectedEdgeIds);
   const connectNodes = useWorkspaceStore((state) => state.connectNodes);
@@ -159,6 +160,8 @@ export function DiagramCanvas() {
       onMoveEnd={onMoveEnd}
       onKeyDown={onKeyDown}
       defaultViewport={activeDiagram.viewport}
+      snapToGrid={snapToGrid}
+      snapGrid={[24, 24]}
     >
       {showGrid ? <Background /> : null}
       <MiniMap />
