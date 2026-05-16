@@ -14,7 +14,7 @@ import {
 } from '@xyflow/react';
 import { useCallback, useMemo } from 'react';
 
-import { readAssetDragPayload } from '../components/AssetPool';
+import { hasAssetDragPayload, readAssetDragPayload } from '../components/AssetPool';
 import type { DomainId } from '../domain/ids';
 import { useWorkspaceStore } from '../store/workspaceStore';
 import {
@@ -82,7 +82,7 @@ export function DiagramCanvas() {
   );
 
   const onDragOver = useCallback((event: React.DragEvent) => {
-    if (readAssetDragPayload(event.dataTransfer)) {
+    if (hasAssetDragPayload(event.dataTransfer)) {
       event.preventDefault();
       event.dataTransfer.dropEffect = 'copy';
     }

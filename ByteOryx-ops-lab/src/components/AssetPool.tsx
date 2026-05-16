@@ -13,6 +13,10 @@ export function readAssetDragPayload(dataTransfer: DataTransfer) {
   return dataTransfer.getData(ASSET_DRAG_MIME) || null;
 }
 
+export function hasAssetDragPayload(dataTransfer: DataTransfer) {
+  return Array.from(dataTransfer.types).includes(ASSET_DRAG_MIME);
+}
+
 export function AssetPool() {
   const [query, setQuery] = useState('');
   const assets = useWorkspaceStore((state) => state.project.assets);
