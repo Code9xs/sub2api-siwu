@@ -30,7 +30,7 @@ select {
 
 .workspace-shell {
   display: grid;
-  grid-template-rows: 48px minmax(0, 1fr) 28px;
+  grid-template-rows: auto minmax(0, 1fr) 28px;
   width: 100vw;
   height: 100vh;
   background: #eef2f6;
@@ -195,6 +195,12 @@ select {
   padding: 0 0.6rem;
 }
 
+.search-field:focus-within {
+  border-color: #2563eb;
+  outline: 2px solid #93c5fd;
+  outline-offset: 2px;
+}
+
 .search-field input {
   min-width: 0;
   width: 100%;
@@ -215,15 +221,22 @@ select {
 .asset-card {
   display: grid;
   gap: 0.65rem;
+  min-width: 0;
   border: 1px solid #dbe3ee;
   border-radius: 8px;
   background: #ffffff;
   padding: 0.75rem;
 }
 
+.asset-card > div {
+  min-width: 0;
+}
+
 .asset-card h3,
 .asset-card p {
+  min-width: 0;
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .asset-card h3 {
@@ -241,6 +254,12 @@ select {
 .asset-card__meta {
   justify-content: space-between;
   gap: 0.5rem;
+  min-width: 0;
+}
+
+.asset-card__meta span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .asset-card__meta strong {
