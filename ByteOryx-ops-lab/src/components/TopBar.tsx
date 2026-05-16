@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { FileDown, FolderOpen, ImageDown, Save, Upload } from 'lucide-react';
 
 import { useWorkspaceStore } from '../store/workspaceStore';
+import { ImportDialog } from './ImportDialog';
 
 const saveStatusLabels = {
   saved: '已保存',
@@ -10,6 +12,7 @@ const saveStatusLabels = {
 };
 
 export function TopBar() {
+  const [importOpen, setImportOpen] = useState(false);
   const projectName = useWorkspaceStore((state) => state.project.project.name);
   const saveStatus = useWorkspaceStore((state) => state.saveStatus);
 
@@ -31,7 +34,7 @@ export function TopBar() {
           <Save size={16} aria-hidden="true" />
           保存
         </button>
-        <button type="button" className="command-button">
+        <button type="button" className="command-button" onClick={() => setImportOpen(true)}>
           <Upload size={16} aria-hidden="true" />
           导入
         </button>
@@ -44,6 +47,7 @@ export function TopBar() {
           PDF
         </button>
       </nav>
+      <ImportDialog open={importOpen} onClose={() => setImportOpen(false)} />
     </header>
   );
 }

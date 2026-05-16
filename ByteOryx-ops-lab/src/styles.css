@@ -134,6 +134,141 @@ select {
   color: #0f172a;
 }
 
+.command-button--primary {
+  border-color: #1d4ed8;
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.command-button--primary:hover {
+  border-color: #1e40af;
+  background: #1d4ed8;
+  color: #ffffff;
+}
+
+.command-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  background: rgb(15 23 42 / 38%);
+  padding: 1rem;
+}
+
+.import-dialog {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(720px, 100%);
+  max-height: min(720px, calc(100vh - 2rem));
+  overflow: hidden;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 24px 60px rgb(15 23 42 / 22%);
+}
+
+.import-dialog__header,
+.import-dialog__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 0.85rem 1rem;
+}
+
+.import-dialog__footer {
+  justify-content: flex-end;
+  border-top: 1px solid #e2e8f0;
+  border-bottom: 0;
+}
+
+.import-dialog__header h2,
+.import-dialog__header p {
+  margin: 0;
+}
+
+.import-dialog__header h2 {
+  color: #0f172a;
+  font-size: 1rem;
+}
+
+.import-dialog__header p {
+  color: #64748b;
+  font-size: 0.78rem;
+}
+
+.import-dialog__body {
+  display: grid;
+  gap: 1rem;
+  min-height: 0;
+  overflow: auto;
+  padding: 1rem;
+}
+
+.file-picker,
+.mapping-field {
+  display: grid;
+  gap: 0.4rem;
+  color: #334155;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.file-picker input,
+.mapping-field select {
+  min-width: 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #0f172a;
+  padding: 0.45rem 0.55rem;
+}
+
+.mapping-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.import-preview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.import-preview span {
+  display: grid;
+  gap: 0.2rem;
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #64748b;
+  padding: 0.7rem;
+  font-size: 0.78rem;
+}
+
+.import-preview strong {
+  color: #0f172a;
+  font-size: 1.15rem;
+}
+
+.import-error {
+  margin: 0;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  background: #fef2f2;
+  color: #991b1b;
+  padding: 0.65rem 0.75rem;
+  font-size: 0.82rem;
+}
+
 .workspace-body {
   display: grid;
   grid-template-columns: 48px minmax(220px, 280px) minmax(0, 1fr) minmax(240px, 320px);
