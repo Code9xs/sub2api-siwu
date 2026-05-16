@@ -2,37 +2,44 @@ import type { DomainId } from './ids';
 
 export type DiagramTemplateId = 'network' | 'system';
 
-export type EdgeDirection = 'none' | 'forward' | 'backward' | 'bidirectional';
+export type EdgeDirection = 'none' | 'one-way' | 'two-way';
 
-export type MetadataFieldType = 'text' | 'number' | 'select' | 'boolean';
+export type FieldKind = 'text' | 'textarea' | 'tags' | 'select';
 
 export interface MetadataField {
-  id: string;
+  key: string;
   label: string;
-  type: MetadataFieldType;
-  options?: readonly string[];
+  kind: FieldKind;
+  options?: string[];
 }
 
 export interface NodeTypeDefinition {
   id: string;
   label: string;
-  description?: string;
-  defaultStyle?: NodeStyle;
+  icon: string;
+  color: string;
 }
 
 export interface DiagramTemplate {
   id: DiagramTemplateId;
   label: string;
-  nodeTypes: readonly NodeTypeDefinition[];
-  edgeMetadataFields: readonly MetadataField[];
+  nodeTypes: NodeTypeDefinition[];
+  nodeMetadataFields: MetadataField[];
+  edgeMetadataFields: MetadataField[];
 }
 
 export interface Asset {
   id: DomainId<'asset'>;
   name: string;
-  mimeType: string;
-  dataUrl: string;
+  type: string;
+  ip?: string;
+  zone?: string;
+  tags: string[];
+  vendor?: string;
+  description?: string;
+  source: 'import' | 'manual';
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface Point {
@@ -44,25 +51,33 @@ export interface NodeStyle {
   fill?: string;
   stroke?: string;
   textColor?: string;
-  icon?: string;
+}
+
+export interface Size {
+  width: number;
+  height: number;
 }
 
 export interface DiagramNode {
   id: DomainId<'node'>;
+  assetId?: DomainId<'asset'>;
+  name: string;
   type: string;
-  label: string;
   position: Point;
-  metadata: Record<string, string | number | boolean>;
-  style?: NodeStyle;
+  size?: Size;
+  style: NodeStyle;
+  metadata: Record<string, string | string[]>;
 }
 
 export interface DiagramEdge {
   id: DomainId<'edge'>;
   sourceNodeId: DomainId<'node'>;
   targetNodeId: DomainId<'node'>;
-  label?: string;
   direction: EdgeDirection;
-  metadata: Record<string, string | number | boolean>;
+  relationshipType: string;
+  label?: string;
+  style: NodeStyle;
+  metadata: Record<string, string | string[]>;
 }
 
 export interface DiagramViewport {
@@ -81,14 +96,17 @@ export interface Diagram {
 }
 
 export interface OpsProject {
-  id: DomainId<'project'>;
   version: 1;
-  name: string;
+  project: {
+    name: string;
+    createdAt: string;
+    updatedAt: string;
+  };
   assets: Asset[];
   diagrams: Diagram[];
-  activeDiagramId: DomainId<'diagram'>;
-  snapToGrid: boolean;
-  showGrid: boolean;
-  createdAt: string;
-  updatedAt: string;
+  settings: {
+    activeDiagramId: DomainId<'diagram'>;
+    snapToGrid: boolean;
+    showGrid: boolean;
+  };
 }

@@ -11,16 +11,19 @@ export function createProject({ name, template }: CreateProjectInput): OpsProjec
   const diagram = createDiagram(name, template);
 
   return {
-    id: createId('project'),
     version: 1,
-    name,
+    project: {
+      name,
+      createdAt: now,
+      updatedAt: now,
+    },
     assets: [],
     diagrams: [diagram],
-    activeDiagramId: diagram.id,
-    snapToGrid: true,
-    showGrid: true,
-    createdAt: now,
-    updatedAt: now,
+    settings: {
+      activeDiagramId: diagram.id,
+      snapToGrid: true,
+      showGrid: true,
+    },
   };
 }
 
