@@ -3,8 +3,12 @@ import type { OpsProject } from '../domain/types';
 
 export const PROJECT_EXTENSION = '.opsdraw.json';
 
-export function downloadTextFile(filename: string, contents: string): void {
-  const blob = new Blob([contents], { type: 'application/json' });
+export function downloadTextFile(
+  filename: string,
+  contents: string,
+  mimeType = 'application/json',
+): void {
+  const blob = new Blob([contents], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
 

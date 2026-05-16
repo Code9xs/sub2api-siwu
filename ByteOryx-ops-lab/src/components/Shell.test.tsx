@@ -22,6 +22,7 @@ describe('Shell', () => {
     renderShell();
 
     expect(screen.getByText('Ops Drawing Tool')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '下载模板' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: '资产池' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: '画布' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: '属性面板' })).toBeInTheDocument();

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { FileDown, FolderOpen, ImageDown, Save, Upload } from 'lucide-react';
+import { FileDown, FolderOpen, ImageDown, Save, Table, Upload } from 'lucide-react';
 
 import { exportElementAsPdf, exportElementAsPng, exportProject } from '../export/exportDiagram';
 import { createSerializedAutosave } from '../export/serializedAutosave';
+import { downloadAssetImportTemplate } from '../import/assetTemplate';
 import { loadAutosave, saveAutosave } from '../storage/autosave';
 import { PROJECT_EXTENSION, readProjectFile } from '../storage/fileAccess';
 import { useWorkspaceStore } from '../store/workspaceStore';
@@ -151,6 +152,10 @@ export function TopBar() {
         <button type="button" className="command-button" onClick={saveProject}>
           <Save size={16} aria-hidden="true" />
           保存
+        </button>
+        <button type="button" className="command-button" onClick={downloadAssetImportTemplate}>
+          <Table size={16} aria-hidden="true" />
+          下载模板
         </button>
         <button
           type="button"
