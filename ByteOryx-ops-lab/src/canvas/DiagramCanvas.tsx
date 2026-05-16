@@ -7,7 +7,6 @@ import {
   ReactFlow,
   type Connection,
   type Edge,
-  type NodeChange,
   type NodeTypes,
   type OnNodesChange,
   type OnSelectionChangeFunc,
@@ -16,34 +15,39 @@ import { useCallback, useMemo } from 'react';
 
 import type { DomainId } from '../domain/ids';
 import { useWorkspaceStore } from '../store/workspaceStore';
-import { toFlowEdges, toFlowNodes, type OpsFlowNode } from './edgeUtils';
+import {
+  shouldPersistPositionChange,
+  toFlowEdges,
+  toFlowNodes,
+  type OpsFlowNode,
+} from './edgeUtils';
 import { OpsNode } from './OpsNode';
 
 const nodeTypes: NodeTypes = {
   opsNode: OpsNode,
 };
 
-function isPositionChange(
-  change: NodeChange<OpsFlowNode>,
-): change is Extract<NodeChange<OpsFlowNode>, { type: 'position' }> & {
-  position: NonNullable<Extract<NodeChange<OpsFlowNode>, { type: 'position' }>['position']>;
-} {
-  return change.type === 'position' && Boolean(change.position);
-}
-
 export function DiagramCanvas() {
   const activeDiagram = useWorkspaceStore((state) => state.activeDiagram());
+  const selectedNodeIds = useWorkspaceStore((state) => state.selectedNodeIds);
+  const selectedEdgeIds = useWorkspaceStore((state) => state.selectedEdgeIds);
   const connectNodes = useWorkspaceStore((state) => state.connectNodes);
   const updateNode = useWorkspaceStore((state) => state.updateNode);
   const setSelection = useWorkspaceStore((state) => state.setSelection);
 
-  const nodes = useMemo(() => toFlowNodes(activeDiagram.nodes), [activeDiagram.nodes]);
-  const edges = useMemo(() => toFlowEdges(activeDiagram.edges), [activeDiagram.edges]);
+  const nodes = useMemo(
+    () => toFlowNodes(activeDiagram.nodes, selectedNodeIds),
+    [activeDiagram.nodes, selectedNodeIds],
+  );
+  const edges = useMemo(
+    () => toFlowEdges(activeDiagram.edges, selectedEdgeIds),
+    [activeDiagram.edges, selectedEdgeIds],
+  );
 
   const onNodesChange = useCallback<OnNodesChange<OpsFlowNode>>(
     (changes) => {
       for (const change of changes) {
-        if (isPositionChange(change)) {
+        if (shouldPersistPositionChange(change)) {
           updateNode(change.id as DomainId<'node'>, { position: change.position });
         }
       }
