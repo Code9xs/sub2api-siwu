@@ -10,6 +10,7 @@ import type {
   NodeStyle,
   OpsProject,
   Point,
+  Size,
 } from '../domain/types';
 import type { DomainId } from '../domain/ids';
 
@@ -100,6 +101,14 @@ function cloneStyle(style: NodeStyle): NodeStyle {
   return { ...style };
 }
 
+function clonePoint(point: Point): Point {
+  return { ...point };
+}
+
+function cloneSize(size: Size): Size {
+  return { ...size };
+}
+
 function cloneMetadata<TMetadata extends DiagramNode['metadata'] | DiagramEdge['metadata']>(
   metadata: TMetadata,
 ): TMetadata {
@@ -116,6 +125,8 @@ function cloneNodeUpdates(
 ): Partial<Omit<DiagramNode, 'id'>> {
   return {
     ...updates,
+    ...(updates.position ? { position: clonePoint(updates.position) } : {}),
+    ...(updates.size ? { size: cloneSize(updates.size) } : {}),
     ...(updates.style ? { style: cloneStyle(updates.style) } : {}),
     ...(updates.metadata ? { metadata: cloneMetadata(updates.metadata) } : {}),
   };
@@ -191,7 +202,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       assetId,
       name: asset.name,
       type: asset.type,
-      position,
+      position: clonePoint(position),
       style: { ...defaultNodeStyle },
       metadata: copyAssetMetadata(asset),
     };
@@ -215,8 +226,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       id: nodeId,
       name: input.name,
       type: input.type,
-      position: input.position,
-      ...(input.size ? { size: input.size } : {}),
+      position: clonePoint(input.position),
+      ...(input.size ? { size: cloneSize(input.size) } : {}),
       style: input.style ? cloneStyle(input.style) : { ...defaultNodeStyle },
       metadata: input.metadata ? cloneMetadata(input.metadata) : {},
     };

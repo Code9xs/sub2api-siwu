@@ -163,6 +163,46 @@ describe('workspace store', () => {
     expect(node?.metadata).toEqual({ owner: 'platform', tags: ['api', 'prod'] });
   });
 
+  it('clones imported asset position on write', () => {
+    useWorkspaceStore.getState().importAssets([importedAsset]);
+    const position = { x: 120, y: 80 };
+
+    const nodeId = useWorkspaceStore.getState().placeAssetOnCanvas(importedAsset.id, position);
+    position.x = 999;
+    position.y = 888;
+
+    const node = useWorkspaceStore
+      .getState()
+      .activeDiagram()
+      .nodes.find((candidate) => candidate.id === nodeId);
+
+    expect(node?.position).toEqual({ x: 120, y: 80 });
+  });
+
+  it('clones manual node position and size on write', () => {
+    const position = { x: 320, y: 80 };
+    const size = { width: 160, height: 96 };
+
+    const nodeId = useWorkspaceStore.getState().addManualNode({
+      name: 'api',
+      type: 'service',
+      position,
+      size,
+    });
+    position.x = 999;
+    position.y = 888;
+    size.width = 1;
+    size.height = 2;
+
+    const node = useWorkspaceStore
+      .getState()
+      .activeDiagram()
+      .nodes.find((candidate) => candidate.id === nodeId);
+
+    expect(node?.position).toEqual({ x: 320, y: 80 });
+    expect(node?.size).toEqual({ width: 160, height: 96 });
+  });
+
   it('clones node style and metadata updates on write', () => {
     const nodeId = useWorkspaceStore.getState().addManualNode({
       name: 'api',
@@ -187,6 +227,30 @@ describe('workspace store', () => {
 
     expect(node?.style).toEqual({ fill: '#f8fafc', stroke: '#334155' });
     expect(node?.metadata).toEqual({ owner: 'platform', tags: ['api', 'prod'] });
+  });
+
+  it('clones node position and size updates on write', () => {
+    const nodeId = useWorkspaceStore.getState().addManualNode({
+      name: 'api',
+      type: 'service',
+      position: { x: 320, y: 80 },
+    });
+    const position = { x: 520, y: 180 };
+    const size = { width: 160, height: 96 };
+
+    useWorkspaceStore.getState().updateNode(nodeId, { position, size });
+    position.x = 999;
+    position.y = 888;
+    size.width = 1;
+    size.height = 2;
+
+    const node = useWorkspaceStore
+      .getState()
+      .activeDiagram()
+      .nodes.find((candidate) => candidate.id === nodeId);
+
+    expect(node?.position).toEqual({ x: 520, y: 180 });
+    expect(node?.size).toEqual({ width: 160, height: 96 });
   });
 
   it('clones edge style and metadata updates on write', () => {
