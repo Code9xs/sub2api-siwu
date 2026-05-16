@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react';
+
 import { getTemplate } from '../domain/templates';
 import type { DiagramEdge, DiagramNode, MetadataField } from '../domain/types';
 import { useWorkspaceStore } from '../store/workspaceStore';
@@ -28,9 +30,38 @@ function MetadataFieldControl({
 }: {
   field: MetadataField;
   value: string | string[] | undefined;
-  onChange: (value: string) => void;
+  onChange: (value: string | string[]) => void;
 }) {
   const stringValue = metadataValueToString(value);
+  const [tagDraft, setTagDraft] = useState(stringValue);
+
+  useEffect(() => {
+    if (field.kind === 'tags') {
+      setTagDraft(stringValue);
+    }
+  }, [field.kind, stringValue]);
+
+  if (field.kind === 'tags') {
+    const commitTagDraft = () => {
+      onChange(parseMetadataValue(field, tagDraft));
+    };
+
+    return (
+      <label className="property-field">
+        <span>{field.label}</span>
+        <input
+          value={tagDraft}
+          onBlur={commitTagDraft}
+          onChange={(event) => setTagDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.currentTarget.blur();
+            }
+          }}
+        />
+      </label>
+    );
+  }
 
   if (field.kind === 'textarea') {
     return (
@@ -101,7 +132,7 @@ function NodeProperties({
             onUpdateNode({
               metadata: {
                 ...node.metadata,
-                [field.key]: parseMetadataValue(field, value),
+                [field.key]: value,
               },
             })
           }
@@ -155,7 +186,7 @@ function EdgeProperties({
             onUpdateEdge({
               metadata: {
                 ...edge.metadata,
-                [field.key]: parseMetadataValue(field, value),
+                [field.key]: value,
               },
             })
           }
@@ -172,9 +203,12 @@ export function PropertiesPanel() {
   const updateNode = useWorkspaceStore((state) => state.updateNode);
   const updateEdge = useWorkspaceStore((state) => state.updateEdge);
   const selectedCount = selectedNodeIds.length + selectedEdgeIds.length;
-  const selectedNode = activeDiagram.nodes.find((node) => node.id === selectedNodeIds[0]);
+  const selectedNode =
+    selectedNodeIds.length === 1 && selectedEdgeIds.length === 0
+      ? activeDiagram.nodes.find((node) => node.id === selectedNodeIds[0])
+      : undefined;
   const selectedEdge =
-    selectedNodeIds.length === 0
+    selectedNodeIds.length === 0 && selectedEdgeIds.length === 1
       ? activeDiagram.edges.find((edge) => edge.id === selectedEdgeIds[0])
       : undefined;
   const template = getTemplate(activeDiagram.template);
@@ -185,7 +219,9 @@ export function PropertiesPanel() {
         <h2>属性面板</h2>
         <span>{selectedCount}</span>
       </div>
-      {!selectedNode && !selectedEdge ? (
+      {selectedCount > 1 ? (
+        <p className="empty-state">已选择 {selectedCount} 个对象</p>
+      ) : !selectedNode && !selectedEdge ? (
         <p className="empty-state">请选择画布元素</p>
       ) : selectedNode ? (
         <NodeProperties
