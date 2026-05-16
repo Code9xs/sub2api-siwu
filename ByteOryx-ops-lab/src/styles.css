@@ -508,11 +508,61 @@ select {
   background: #2563eb;
 }
 
+.property-form,
 .properties-list {
   display: grid;
   gap: 0.5rem;
   margin: 0;
   padding: 0.75rem;
+}
+
+.property-form {
+  align-content: start;
+  gap: 0.75rem;
+  overflow-y: auto;
+}
+
+.property-field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.property-field span {
+  color: #475569;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.property-field input,
+.property-field select,
+.property-field textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 0.85rem;
+}
+
+.property-field input,
+.property-field select {
+  height: 2rem;
+  padding: 0 0.55rem;
+}
+
+.property-field textarea {
+  min-height: 4.75rem;
+  resize: vertical;
+  padding: 0.5rem 0.55rem;
+}
+
+.property-field input:focus,
+.property-field select:focus,
+.property-field textarea:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgb(37 99 235 / 12%);
+  outline: none;
 }
 
 .properties-list div {
