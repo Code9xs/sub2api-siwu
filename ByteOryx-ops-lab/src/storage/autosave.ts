@@ -1,4 +1,5 @@
 import { openDB } from 'idb';
+import { decodeProjectFile, encodeProjectFile } from '../domain/projectCodec';
 import type { OpsProject } from '../domain/types';
 
 const DB_NAME = 'ops-drawing-tool';
@@ -17,14 +18,29 @@ async function getAutosaveDb() {
 
 export async function saveAutosave(project: OpsProject): Promise<void> {
   const db = await getAutosaveDb();
-  await db.put(STORE_NAME, project, LATEST_KEY);
+  await db.put(STORE_NAME, encodeProjectFile(project), LATEST_KEY);
 }
 
 export async function loadAutosave(): Promise<OpsProject | null> {
   const db = await getAutosaveDb();
-  const project = await db.get(STORE_NAME, LATEST_KEY);
+  const encodedProject = await db.get(STORE_NAME, LATEST_KEY);
 
-  return project ?? null;
+  if (typeof encodedProject !== 'string') {
+    if (encodedProject !== undefined) {
+      await clearAutosave();
+    }
+
+    return null;
+  }
+
+  const decoded = decodeProjectFile(encodedProject);
+
+  if (!decoded.ok) {
+    await clearAutosave();
+    return null;
+  }
+
+  return decoded.project;
 }
 
 export async function clearAutosave(): Promise<void> {

@@ -10,8 +10,11 @@ export function downloadTextFile(filename: string, contents: string): void {
 
   anchor.href = url;
   anchor.download = filename;
+  anchor.hidden = true;
+  document.body.appendChild(anchor);
   anchor.click();
-  URL.revokeObjectURL(url);
+  document.body.removeChild(anchor);
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 export function downloadProjectFile(project: OpsProject): void {
@@ -30,9 +33,8 @@ export async function readProjectFile(file: File): Promise<OpsProject> {
 
 function toSafeFilename(name: string): string {
   const safeName = name
-    .trim()
-    .replace(/[^a-z0-9._-]+/gi, '-')
-    .replace(/^-+|-+$/g, '');
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, '-')
+    .replace(/^[ .]+|[ .]+$/g, '');
 
   return safeName || 'project';
 }
