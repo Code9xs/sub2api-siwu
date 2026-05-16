@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { FileDown, FolderOpen, ImageDown, Save, Upload } from 'lucide-react';
 
 import { exportElementAsPdf, exportElementAsPng, exportProject } from '../export/exportDiagram';
+import { createSerializedAutosave } from '../export/serializedAutosave';
 import { loadAutosave, saveAutosave } from '../storage/autosave';
 import { PROJECT_EXTENSION, readProjectFile } from '../storage/fileAccess';
 import { useWorkspaceStore } from '../store/workspaceStore';
@@ -24,6 +25,13 @@ export function TopBar() {
   const saveStatus = useWorkspaceStore((state) => state.saveStatus);
   const loadProject = useWorkspaceStore((state) => state.loadProject);
   const setSaveStatus = useWorkspaceStore((state) => state.setSaveStatus);
+  const autosaveRef = useRef(
+    createSerializedAutosave({
+      getStatus: () => useWorkspaceStore.getState().saveStatus,
+      save: saveAutosave,
+      setStatus: (nextStatus) => useWorkspaceStore.getState().setSaveStatus(nextStatus),
+    }),
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -65,30 +73,8 @@ export function TopBar() {
       return;
     }
 
-    let cancelled = false;
-
-    async function persistAutosave() {
-      setSaveStatus('saving');
-
-      try {
-        await saveAutosave(project);
-
-        if (!cancelled) {
-          setSaveStatus('saved');
-        }
-      } catch {
-        if (!cancelled) {
-          setSaveStatus('error');
-        }
-      }
-    }
-
-    void persistAutosave();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [autosaveReady, project, setSaveStatus]);
+    autosaveRef.current.schedule(project);
+  }, [autosaveReady, project]);
 
   function closeImportDialog() {
     setImportOpen(false);
