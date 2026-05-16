@@ -431,23 +431,81 @@ select {
   min-height: 0;
   overflow: hidden;
   background-color: #f8fafc;
-  background-image:
-    linear-gradient(#e2e8f0 1px, transparent 1px),
-    linear-gradient(90deg, #e2e8f0 1px, transparent 1px);
-  background-size: 24px 24px;
-  padding: 1rem;
+  padding: 0;
 }
 
-.canvas-placeholder {
-  display: grid;
+.diagram-canvas {
   width: 100%;
   height: 100%;
-  place-items: center;
-  border: 1px dashed #b6c2d2;
-  background: rgb(255 255 255 / 68%);
-  color: #64748b;
-  font-size: 0.9rem;
+}
+
+.diagram-canvas .react-flow__renderer {
+  background: #f8fafc;
+}
+
+.diagram-canvas .react-flow__edge-path {
+  stroke: #64748b;
+  stroke-width: 1.5;
+}
+
+.diagram-canvas .react-flow__edge.selected .react-flow__edge-path {
+  stroke: #2563eb;
+}
+
+.diagram-canvas .react-flow__edge-text {
+  fill: #334155;
+  font-size: 0.75rem;
   font-weight: 700;
+}
+
+.ops-node {
+  position: relative;
+  min-width: 150px;
+  max-width: 220px;
+  border: 2px solid #2563eb;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 8px 20px rgb(15 23 42 / 10%);
+}
+
+.ops-node--selected {
+  box-shadow:
+    0 0 0 3px rgb(37 99 235 / 18%),
+    0 10px 24px rgb(15 23 42 / 16%);
+}
+
+.ops-node__body {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.75rem 0.85rem;
+}
+
+.ops-node__body strong,
+.ops-node__body span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ops-node__body strong {
+  color: inherit;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.ops-node__body span {
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.ops-node__handle {
+  width: 10px;
+  height: 10px;
+  border: 2px solid #ffffff;
+  background: #2563eb;
 }
 
 .properties-list {

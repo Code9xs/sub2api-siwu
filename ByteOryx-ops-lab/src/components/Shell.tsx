@@ -1,3 +1,4 @@
+import { DiagramCanvas } from '../canvas/DiagramCanvas';
 import { AssetPool } from './AssetPool';
 import { CanvasToolbar } from './CanvasToolbar';
 import { PropertiesPanel } from './PropertiesPanel';
@@ -12,9 +13,7 @@ export function Shell() {
         <CanvasToolbar />
         <AssetPool />
         <section className="canvas-region" role="region" aria-label="画布">
-          <div className="canvas-placeholder">
-            <span>画布</span>
-          </div>
+          <DiagramCanvas />
         </section>
         <PropertiesPanel />
       </div>
