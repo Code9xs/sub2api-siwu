@@ -3,6 +3,16 @@ import { useMemo, useState } from 'react';
 
 import { useWorkspaceStore } from '../store/workspaceStore';
 
+export const ASSET_DRAG_MIME = 'application/vnd.opsdraw.asset-id';
+
+export function writeAssetDragPayload(dataTransfer: DataTransfer, assetId: string) {
+  dataTransfer.setData(ASSET_DRAG_MIME, assetId);
+}
+
+export function readAssetDragPayload(dataTransfer: DataTransfer) {
+  return dataTransfer.getData(ASSET_DRAG_MIME) || null;
+}
+
 export function AssetPool() {
   const [query, setQuery] = useState('');
   const assets = useWorkspaceStore((state) => state.project.assets);
@@ -44,7 +54,12 @@ export function AssetPool() {
           <p className="empty-state">{assets.length === 0 ? '暂无资产' : '没有匹配资产'}</p>
         ) : (
           filteredAssets.map((asset) => (
-            <article key={asset.id} className="asset-card">
+            <article
+              key={asset.id}
+              className="asset-card"
+              draggable
+              onDragStart={(event) => writeAssetDragPayload(event.dataTransfer, asset.id)}
+            >
               <div>
                 <h3>{asset.name}</h3>
                 <p>{asset.type}</p>

@@ -10,9 +10,11 @@ import {
   type NodeTypes,
   type OnNodesChange,
   type OnSelectionChangeFunc,
+  useReactFlow,
 } from '@xyflow/react';
 import { useCallback, useMemo } from 'react';
 
+import { readAssetDragPayload } from '../components/AssetPool';
 import type { DomainId } from '../domain/ids';
 import { useWorkspaceStore } from '../store/workspaceStore';
 import {
@@ -28,10 +30,12 @@ const nodeTypes: NodeTypes = {
 };
 
 export function DiagramCanvas() {
+  const { screenToFlowPosition } = useReactFlow<OpsFlowNode, Edge>();
   const activeDiagram = useWorkspaceStore((state) => state.activeDiagram());
   const selectedNodeIds = useWorkspaceStore((state) => state.selectedNodeIds);
   const selectedEdgeIds = useWorkspaceStore((state) => state.selectedEdgeIds);
   const connectNodes = useWorkspaceStore((state) => state.connectNodes);
+  const placeAssetOnCanvas = useWorkspaceStore((state) => state.placeAssetOnCanvas);
   const updateNode = useWorkspaceStore((state) => state.updateNode);
   const setSelection = useWorkspaceStore((state) => state.setSelection);
 
@@ -77,6 +81,30 @@ export function DiagramCanvas() {
     [setSelection],
   );
 
+  const onDragOver = useCallback((event: React.DragEvent) => {
+    if (readAssetDragPayload(event.dataTransfer)) {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'copy';
+    }
+  }, []);
+
+  const onDrop = useCallback(
+    (event: React.DragEvent) => {
+      const assetId = readAssetDragPayload(event.dataTransfer);
+
+      if (!assetId) {
+        return;
+      }
+
+      event.preventDefault();
+      placeAssetOnCanvas(
+        assetId as DomainId<'asset'>,
+        screenToFlowPosition({ x: event.clientX, y: event.clientY }),
+      );
+    },
+    [placeAssetOnCanvas, screenToFlowPosition],
+  );
+
   return (
     <ReactFlow<OpsFlowNode, Edge>
       className="diagram-canvas"
@@ -86,6 +114,8 @@ export function DiagramCanvas() {
       onNodesChange={onNodesChange}
       onConnect={onConnect}
       onSelectionChange={onSelectionChange}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
       fitView
     >
       <Background />

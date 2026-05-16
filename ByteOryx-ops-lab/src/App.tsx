@@ -1,5 +1,11 @@
+import { ReactFlowProvider } from '@xyflow/react';
+
 import { Shell } from './components/Shell';
 
 export default function App() {
-  return <Shell />;
+  return (
+    <ReactFlowProvider>
+      <Shell />
+    </ReactFlowProvider>
+  );
 }
