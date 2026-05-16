@@ -23,7 +23,7 @@ export async function parseImportFile(file: File): Promise<ImportRow[]> {
   const extension = getFileExtension(file.name);
 
   if (extension === 'csv') {
-    return parseCsvText(await file.text());
+    return parseCsvText(decodeCsvBuffer(await file.arrayBuffer()));
   }
 
   if (extension === 'xlsx') {
@@ -48,6 +48,26 @@ function parseXlsxBuffer(buffer: ArrayBuffer): ImportRow[] {
   });
 
   return rows.map((row) => trimRow(row));
+}
+
+function decodeCsvBuffer(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+
+  if (hasUtf8Bom(bytes)) {
+    return new TextDecoder('utf-8').decode(bytes);
+  }
+
+  const utf8Text = new TextDecoder('utf-8').decode(bytes);
+
+  if (!utf8Text.includes('\uFFFD')) {
+    return utf8Text;
+  }
+
+  return new TextDecoder('gb18030').decode(bytes);
+}
+
+function hasUtf8Bom(bytes: Uint8Array): boolean {
+  return bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf;
 }
 
 function trimRow(row: Record<string, unknown>): ImportRow {
