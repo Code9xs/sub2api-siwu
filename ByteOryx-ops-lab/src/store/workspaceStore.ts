@@ -96,6 +96,41 @@ function copyAssetMetadata(asset: Asset): DiagramNode['metadata'] {
   };
 }
 
+function cloneStyle(style: NodeStyle): NodeStyle {
+  return { ...style };
+}
+
+function cloneMetadata<TMetadata extends DiagramNode['metadata'] | DiagramEdge['metadata']>(
+  metadata: TMetadata,
+): TMetadata {
+  return Object.fromEntries(
+    Object.entries(metadata).map(([key, value]) => [
+      key,
+      Array.isArray(value) ? [...value] : value,
+    ]),
+  ) as TMetadata;
+}
+
+function cloneNodeUpdates(
+  updates: Partial<Omit<DiagramNode, 'id'>>,
+): Partial<Omit<DiagramNode, 'id'>> {
+  return {
+    ...updates,
+    ...(updates.style ? { style: cloneStyle(updates.style) } : {}),
+    ...(updates.metadata ? { metadata: cloneMetadata(updates.metadata) } : {}),
+  };
+}
+
+function cloneEdgeUpdates(
+  updates: Partial<Omit<DiagramEdge, 'id'>>,
+): Partial<Omit<DiagramEdge, 'id'>> {
+  return {
+    ...updates,
+    ...(updates.style ? { style: cloneStyle(updates.style) } : {}),
+    ...(updates.metadata ? { metadata: cloneMetadata(updates.metadata) } : {}),
+  };
+}
+
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   project: createInitialProject(),
   selectedNodeIds: [],
@@ -182,8 +217,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       type: input.type,
       position: input.position,
       ...(input.size ? { size: input.size } : {}),
-      style: input.style ?? { ...defaultNodeStyle },
-      metadata: input.metadata ?? {},
+      style: input.style ? cloneStyle(input.style) : { ...defaultNodeStyle },
+      metadata: input.metadata ? cloneMetadata(input.metadata) : {},
     };
 
     set(({ project }) => ({
@@ -200,6 +235,18 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   },
 
   connectNodes: (sourceNodeId, targetNodeId) => {
+    const activeDiagram = get().activeDiagram();
+    const sourceExists = activeDiagram.nodes.some((node) => node.id === sourceNodeId);
+    const targetExists = activeDiagram.nodes.some((node) => node.id === targetNodeId);
+
+    if (!sourceExists) {
+      throw new Error(`Source node not found: ${sourceNodeId}`);
+    }
+
+    if (!targetExists) {
+      throw new Error(`Target node not found: ${targetNodeId}`);
+    }
+
     const edgeId = createId('edge');
     const edge: DiagramEdge = {
       id: edgeId,
@@ -225,12 +272,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   },
 
   updateNode: (nodeId, updates) => {
+    const clonedUpdates = cloneNodeUpdates(updates);
+
     set(({ project }) => ({
       project: markProjectDirty(
         updateActiveDiagram(project, (diagram) => ({
           ...diagram,
           nodes: diagram.nodes.map((node) =>
-            node.id === nodeId ? { ...node, ...updates } : node,
+            node.id === nodeId ? { ...node, ...clonedUpdates } : node,
           ),
         })),
       ),
@@ -239,12 +288,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   },
 
   updateEdge: (edgeId, updates) => {
+    const clonedUpdates = cloneEdgeUpdates(updates);
+
     set(({ project }) => ({
       project: markProjectDirty(
         updateActiveDiagram(project, (diagram) => ({
           ...diagram,
           edges: diagram.edges.map((edge) =>
-            edge.id === edgeId ? { ...edge, ...updates } : edge,
+            edge.id === edgeId ? { ...edge, ...clonedUpdates } : edge,
           ),
         })),
       ),
@@ -254,8 +305,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
   setSelection: ({ nodeIds = [], edgeIds = [] }) => {
     set({
-      selectedNodeIds: nodeIds,
-      selectedEdgeIds: edgeIds,
+      selectedNodeIds: [...nodeIds],
+      selectedEdgeIds: [...edgeIds],
     });
   },
 

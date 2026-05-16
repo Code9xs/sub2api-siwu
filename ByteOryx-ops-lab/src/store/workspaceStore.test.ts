@@ -85,4 +85,139 @@ describe('workspace store', () => {
       relationshipType: 'connected-to',
     });
   });
+
+  it('does not mutate the project when the source node is missing', () => {
+    const targetNodeId = useWorkspaceStore.getState().addManualNode({
+      name: 'api',
+      type: 'service',
+      position: { x: 320, y: 80 },
+    });
+    useWorkspaceStore.getState().setSaveStatus('saved');
+    const projectBeforeConnect = useWorkspaceStore.getState().project;
+
+    expect(() =>
+      useWorkspaceStore
+        .getState()
+        .connectNodes('node-missing' as DomainId<'node'>, targetNodeId),
+    ).toThrow('Source node not found: node-missing');
+
+    expect(useWorkspaceStore.getState().project).toBe(projectBeforeConnect);
+    expect(useWorkspaceStore.getState().saveStatus).toBe('saved');
+  });
+
+  it('does not mutate the project when the target node is missing', () => {
+    const sourceNodeId = useWorkspaceStore.getState().addManualNode({
+      name: 'api',
+      type: 'service',
+      position: { x: 320, y: 80 },
+    });
+    useWorkspaceStore.getState().setSaveStatus('saved');
+    const projectBeforeConnect = useWorkspaceStore.getState().project;
+
+    expect(() =>
+      useWorkspaceStore
+        .getState()
+        .connectNodes(sourceNodeId, 'node-missing' as DomainId<'node'>),
+    ).toThrow('Target node not found: node-missing');
+
+    expect(useWorkspaceStore.getState().project).toBe(projectBeforeConnect);
+    expect(useWorkspaceStore.getState().saveStatus).toBe('saved');
+  });
+
+  it('clones selection arrays on write', () => {
+    const nodeIds = ['node-1' as DomainId<'node'>];
+    const edgeIds = ['edge-1' as DomainId<'edge'>];
+
+    useWorkspaceStore.getState().setSelection({ nodeIds, edgeIds });
+    nodeIds.push('node-2' as DomainId<'node'>);
+    edgeIds.push('edge-2' as DomainId<'edge'>);
+
+    expect(useWorkspaceStore.getState().selectedNodeIds).toEqual(['node-1']);
+    expect(useWorkspaceStore.getState().selectedEdgeIds).toEqual(['edge-1']);
+  });
+
+  it('clones manual node style and metadata on write', () => {
+    const style = { fill: '#ffffff', stroke: '#111111' };
+    const metadata = {
+      owner: 'platform',
+      tags: ['api', 'prod'],
+    };
+
+    const nodeId = useWorkspaceStore.getState().addManualNode({
+      name: 'api',
+      type: 'service',
+      position: { x: 320, y: 80 },
+      style,
+      metadata,
+    });
+    style.stroke = '#ff0000';
+    metadata.owner = 'network';
+    metadata.tags.push('mutated');
+
+    const node = useWorkspaceStore
+      .getState()
+      .activeDiagram()
+      .nodes.find((candidate) => candidate.id === nodeId);
+
+    expect(node?.style).toEqual({ fill: '#ffffff', stroke: '#111111' });
+    expect(node?.metadata).toEqual({ owner: 'platform', tags: ['api', 'prod'] });
+  });
+
+  it('clones node style and metadata updates on write', () => {
+    const nodeId = useWorkspaceStore.getState().addManualNode({
+      name: 'api',
+      type: 'service',
+      position: { x: 320, y: 80 },
+    });
+    const style = { fill: '#f8fafc', stroke: '#334155' };
+    const metadata = {
+      owner: 'platform',
+      tags: ['api', 'prod'],
+    };
+
+    useWorkspaceStore.getState().updateNode(nodeId, { style, metadata });
+    style.stroke = '#ff0000';
+    metadata.owner = 'network';
+    metadata.tags.push('mutated');
+
+    const node = useWorkspaceStore
+      .getState()
+      .activeDiagram()
+      .nodes.find((candidate) => candidate.id === nodeId);
+
+    expect(node?.style).toEqual({ fill: '#f8fafc', stroke: '#334155' });
+    expect(node?.metadata).toEqual({ owner: 'platform', tags: ['api', 'prod'] });
+  });
+
+  it('clones edge style and metadata updates on write', () => {
+    const sourceNodeId = useWorkspaceStore.getState().addManualNode({
+      name: 'api',
+      type: 'service',
+      position: { x: 320, y: 80 },
+    });
+    const targetNodeId = useWorkspaceStore.getState().addManualNode({
+      name: 'db',
+      type: 'database',
+      position: { x: 520, y: 80 },
+    });
+    const edgeId = useWorkspaceStore.getState().connectNodes(sourceNodeId, targetNodeId);
+    const style = { stroke: '#334155', textColor: '#0f172a' };
+    const metadata = {
+      protocol: 'https',
+      tags: ['sync', 'prod'],
+    };
+
+    useWorkspaceStore.getState().updateEdge(edgeId, { style, metadata });
+    style.stroke = '#ff0000';
+    metadata.protocol = 'ssh';
+    metadata.tags.push('mutated');
+
+    const edge = useWorkspaceStore
+      .getState()
+      .activeDiagram()
+      .edges.find((candidate) => candidate.id === edgeId);
+
+    expect(edge?.style).toEqual({ stroke: '#334155', textColor: '#0f172a' });
+    expect(edge?.metadata).toEqual({ protocol: 'https', tags: ['sync', 'prod'] });
+  });
 });
