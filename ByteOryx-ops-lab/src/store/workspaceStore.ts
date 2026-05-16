@@ -7,6 +7,7 @@ import type {
   Diagram,
   DiagramEdge,
   DiagramNode,
+  DiagramViewport,
   NodeStyle,
   OpsProject,
   Point,
@@ -25,10 +26,16 @@ interface ManualNodeInput {
   metadata?: DiagramNode['metadata'];
 }
 
+interface WorkspaceClipboard {
+  nodes: DiagramNode[];
+  edges: DiagramEdge[];
+}
+
 interface WorkspaceState {
   project: OpsProject;
   selectedNodeIds: DomainId<'node'>[];
   selectedEdgeIds: DomainId<'edge'>[];
+  clipboard: WorkspaceClipboard | null;
   saveStatus: SaveStatus;
   resetWorkspace: () => void;
   loadProject: (project: OpsProject) => void;
@@ -42,6 +49,10 @@ interface WorkspaceState {
   ) => DomainId<'edge'>;
   updateNode: (nodeId: DomainId<'node'>, updates: Partial<Omit<DiagramNode, 'id'>>) => void;
   updateEdge: (edgeId: DomainId<'edge'>, updates: Partial<Omit<DiagramEdge, 'id'>>) => void;
+  updateViewport: (viewport: DiagramViewport) => void;
+  deleteSelection: () => void;
+  copySelection: () => void;
+  pasteClipboard: () => DomainId<'node'>[];
   setSelection: (selection: {
     nodeIds?: DomainId<'node'>[];
     edgeIds?: DomainId<'edge'>[];
@@ -109,6 +120,10 @@ function cloneSize(size: Size): Size {
   return { ...size };
 }
 
+function cloneViewport(viewport: DiagramViewport): DiagramViewport {
+  return { ...viewport };
+}
+
 function cloneMetadata<TMetadata extends DiagramNode['metadata'] | DiagramEdge['metadata']>(
   metadata: TMetadata,
 ): TMetadata {
@@ -146,6 +161,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   project: createInitialProject(),
   selectedNodeIds: [],
   selectedEdgeIds: [],
+  clipboard: null,
   saveStatus: 'saved',
 
   resetWorkspace: () => {
@@ -153,6 +169,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       project: createInitialProject(),
       selectedNodeIds: [],
       selectedEdgeIds: [],
+      clipboard: null,
       saveStatus: 'saved',
     });
   },
@@ -162,6 +179,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       project,
       selectedNodeIds: [],
       selectedEdgeIds: [],
+      clipboard: null,
       saveStatus: 'saved',
     });
   },
@@ -314,6 +332,123 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     }));
   },
 
+  updateViewport: (viewport) => {
+    const clonedViewport = cloneViewport(viewport);
+
+    set(({ project }) => ({
+      project: markProjectDirty(
+        updateActiveDiagram(project, (diagram) => ({
+          ...diagram,
+          viewport: clonedViewport,
+        })),
+      ),
+      saveStatus: 'dirty',
+    }));
+  },
+
+  deleteSelection: () => {
+    const { selectedNodeIds, selectedEdgeIds } = get();
+    const selectedNodeIdSet = new Set(selectedNodeIds);
+    const selectedEdgeIdSet = new Set(selectedEdgeIds);
+
+    if (selectedNodeIdSet.size === 0 && selectedEdgeIdSet.size === 0) {
+      return;
+    }
+
+    set(({ project }) => ({
+      project: markProjectDirty(
+        updateActiveDiagram(project, (diagram) => ({
+          ...diagram,
+          nodes: diagram.nodes.filter((node) => !selectedNodeIdSet.has(node.id)),
+          edges: diagram.edges.filter(
+            (edge) =>
+              !selectedEdgeIdSet.has(edge.id) &&
+              !selectedNodeIdSet.has(edge.sourceNodeId) &&
+              !selectedNodeIdSet.has(edge.targetNodeId),
+          ),
+        })),
+      ),
+      selectedNodeIds: [],
+      selectedEdgeIds: [],
+      saveStatus: 'dirty',
+    }));
+  },
+
+  copySelection: () => {
+    const { selectedNodeIds, selectedEdgeIds } = get();
+    const activeDiagram = get().activeDiagram();
+    const selectedNodeIdSet = new Set(selectedNodeIds);
+    const selectedEdgeIdSet = new Set(selectedEdgeIds);
+    const copiedNodes = activeDiagram.nodes
+      .filter((node) => selectedNodeIdSet.has(node.id))
+      .map(cloneNode);
+    const copiedNodeIdSet = new Set(copiedNodes.map((node) => node.id));
+    const copiedEdges = activeDiagram.edges
+      .filter(
+        (edge) =>
+          selectedEdgeIdSet.has(edge.id) ||
+          (copiedNodeIdSet.has(edge.sourceNodeId) && copiedNodeIdSet.has(edge.targetNodeId)),
+      )
+      .map(cloneEdge);
+
+    set({
+      clipboard: copiedNodes.length > 0 ? { nodes: copiedNodes, edges: copiedEdges } : null,
+    });
+  },
+
+  pasteClipboard: () => {
+    const clipboard = get().clipboard;
+
+    if (!clipboard || clipboard.nodes.length === 0) {
+      return [];
+    }
+
+    const idMap = new Map<DomainId<'node'>, DomainId<'node'>>();
+    const pastedNodes = clipboard.nodes.map((node) => {
+      const nodeId = createId('node');
+      idMap.set(node.id, nodeId);
+
+      return {
+        ...cloneNode(node),
+        id: nodeId,
+        name: `${node.name} copy`,
+        position: { x: node.position.x + 24, y: node.position.y + 24 },
+      };
+    });
+    const pastedEdges = clipboard.edges.flatMap((edge) => {
+      const sourceNodeId = idMap.get(edge.sourceNodeId);
+      const targetNodeId = idMap.get(edge.targetNodeId);
+
+      if (!sourceNodeId || !targetNodeId) {
+        return [];
+      }
+
+      return [
+        {
+          ...cloneEdge(edge),
+          id: createId('edge'),
+          sourceNodeId,
+          targetNodeId,
+        },
+      ];
+    });
+
+    set(({ project }) => ({
+      project: markProjectDirty(
+        updateActiveDiagram(project, (diagram) => ({
+          ...diagram,
+          nodes: [...diagram.nodes, ...pastedNodes],
+          edges: [...diagram.edges, ...pastedEdges],
+        })),
+      ),
+      selectedNodeIds: pastedNodes.map((node) => node.id),
+      selectedEdgeIds: [],
+      saveStatus: 'dirty',
+    }));
+
+    return pastedNodes.map((node) => node.id);
+  },
+
   setSelection: ({ nodeIds = [], edgeIds = [] }) => {
     set({
       selectedNodeIds: [...nodeIds],
@@ -325,3 +460,21 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     set({ saveStatus });
   },
 }));
+
+function cloneNode(node: DiagramNode): DiagramNode {
+  return {
+    ...node,
+    position: clonePoint(node.position),
+    ...(node.size ? { size: cloneSize(node.size) } : {}),
+    style: cloneStyle(node.style),
+    metadata: cloneMetadata(node.metadata),
+  };
+}
+
+function cloneEdge(edge: DiagramEdge): DiagramEdge {
+  return {
+    ...edge,
+    style: cloneStyle(edge.style),
+    metadata: cloneMetadata(edge.metadata),
+  };
+}

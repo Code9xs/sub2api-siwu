@@ -10,6 +10,7 @@ import {
   type NodeTypes,
   type OnNodesChange,
   type OnSelectionChangeFunc,
+  type Viewport,
   useReactFlow,
 } from '@xyflow/react';
 import { useCallback, useMemo } from 'react';
@@ -32,11 +33,16 @@ const nodeTypes: NodeTypes = {
 export function DiagramCanvas() {
   const { screenToFlowPosition } = useReactFlow<OpsFlowNode, Edge>();
   const activeDiagram = useWorkspaceStore((state) => state.activeDiagram());
+  const showGrid = useWorkspaceStore((state) => state.project.settings.showGrid);
   const selectedNodeIds = useWorkspaceStore((state) => state.selectedNodeIds);
   const selectedEdgeIds = useWorkspaceStore((state) => state.selectedEdgeIds);
   const connectNodes = useWorkspaceStore((state) => state.connectNodes);
+  const copySelection = useWorkspaceStore((state) => state.copySelection);
+  const deleteSelection = useWorkspaceStore((state) => state.deleteSelection);
+  const pasteClipboard = useWorkspaceStore((state) => state.pasteClipboard);
   const placeAssetOnCanvas = useWorkspaceStore((state) => state.placeAssetOnCanvas);
   const updateNode = useWorkspaceStore((state) => state.updateNode);
+  const updateViewport = useWorkspaceStore((state) => state.updateViewport);
   const setSelection = useWorkspaceStore((state) => state.setSelection);
 
   const nodes = useMemo(
@@ -105,6 +111,40 @@ export function DiagramCanvas() {
     [placeAssetOnCanvas, screenToFlowPosition],
   );
 
+  const onMoveEnd = useCallback(
+    (_event: MouseEvent | TouchEvent | null, viewport: Viewport) => {
+      updateViewport(viewport);
+    },
+    [updateViewport],
+  );
+
+  const onKeyDown = useCallback(
+    (event: React.KeyboardEvent) => {
+      const isModifierPressed = event.ctrlKey || event.metaKey;
+
+      if (event.key === 'Delete' || event.key === 'Backspace') {
+        event.preventDefault();
+        deleteSelection();
+        return;
+      }
+
+      if (!isModifierPressed) {
+        return;
+      }
+
+      if (event.key.toLowerCase() === 'c') {
+        event.preventDefault();
+        copySelection();
+      }
+
+      if (event.key.toLowerCase() === 'v') {
+        event.preventDefault();
+        pasteClipboard();
+      }
+    },
+    [copySelection, deleteSelection, pasteClipboard],
+  );
+
   return (
     <ReactFlow<OpsFlowNode, Edge>
       className="diagram-canvas"
@@ -116,9 +156,11 @@ export function DiagramCanvas() {
       onSelectionChange={onSelectionChange}
       onDragOver={onDragOver}
       onDrop={onDrop}
-      fitView
+      onMoveEnd={onMoveEnd}
+      onKeyDown={onKeyDown}
+      defaultViewport={activeDiagram.viewport}
     >
-      <Background />
+      {showGrid ? <Background /> : null}
       <MiniMap />
       <Controls />
     </ReactFlow>

@@ -80,6 +80,23 @@ describe('ImportDialog', () => {
     expect(useWorkspaceStore.getState().project.assets).toHaveLength(0);
   });
 
+  it('shows duplicate and unknown type warnings in the import preview', async () => {
+    const user = userEvent.setup();
+    const file = new File(
+      ['name,type,ip\ncore-sw,mystery-box,10.0.0.1\ncore-sw,switch,10.0.0.1'],
+      'assets.csv',
+      { type: 'text/csv' },
+    );
+
+    render(<ImportDialog open onClose={() => undefined} />);
+
+    await user.upload(screen.getByLabelText('\u9009\u62e9 CSV \u6216 XLSX \u6587\u4ef6'), file);
+
+    expect(screen.getByText(/重复名称/)).toHaveTextContent('core-sw');
+    expect(screen.getByText(/重复 IP/)).toHaveTextContent('10.0.0.1');
+    expect(screen.getByText(/未知类型/)).toHaveTextContent('mystery-box');
+  });
+
   it('ignores parse completion after the dialog closes', async () => {
     const user = userEvent.setup();
     const deferred = createDeferred<Awaited<ReturnType<typeof parseImportFile>>>();

@@ -28,4 +28,12 @@ describe('Shell', () => {
     expect(screen.getByText('节点 0')).toBeInTheDocument();
     expect(screen.getByText('连线 0')).toBeInTheDocument();
   });
+  it('renders only toolbar controls that perform implemented actions', () => {
+    renderShell();
+
+    expect(screen.getByRole('button', { name: '删除' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '复制' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '粘贴' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /撤销|重做|连线/ })).not.toBeInTheDocument();
+  });
 });

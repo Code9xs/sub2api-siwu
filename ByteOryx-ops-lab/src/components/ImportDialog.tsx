@@ -5,6 +5,8 @@ import { guessFieldMapping } from '../import/fieldMapping';
 import { parseImportFile, type ImportRow } from '../import/importParser';
 import { buildImportPreview, type ImportPreview } from '../import/importValidation';
 import { useWorkspaceStore } from '../store/workspaceStore';
+import { getTemplate } from '../domain/templates';
+import type { DiagramTemplateId } from '../domain/types';
 
 interface ImportDialogProps {
   open: boolean;
@@ -33,6 +35,7 @@ const fieldLabels: Record<ImportAssetField, string> = {
 
 export function ImportDialog({ open, onClose }: ImportDialogProps) {
   const importAssets = useWorkspaceStore((state) => state.importAssets);
+  const activeDiagram = useWorkspaceStore((state) => state.activeDiagram());
   const [rows, setRows] = useState<ImportRow[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
   const [mapping, setMapping] = useState<FieldMapping>({});
@@ -251,6 +254,8 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
               {'\u6ca1\u6709\u53ef\u5bfc\u5165\u7684\u6709\u6548\u8d44\u4ea7'}
             </p>
           ) : null}
+
+          {preview ? <ImportWarnings preview={preview} templateId={activeDiagram.template} /> : null}
         </div>
 
         <footer className="import-dialog__footer">
@@ -267,6 +272,44 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
           </button>
         </footer>
       </section>
+    </div>
+  );
+}
+
+function ImportWarnings({
+  preview,
+  templateId,
+}: {
+  preview: ImportPreview;
+  templateId: DiagramTemplateId;
+}) {
+  const knownTypes = new Set(getTemplate(templateId).nodeTypes.map((nodeType) => nodeType.id));
+  const unknownTypes = [
+    ...new Set(
+      preview.validAssets
+        .map((asset) => asset.type)
+        .filter((type) => type !== 'unknown-device' && !knownTypes.has(type)),
+    ),
+  ];
+  const warnings = [
+    preview.duplicateNames.length > 0
+      ? `重复名称: ${preview.duplicateNames.join(', ')}`
+      : '',
+    preview.duplicateIps.length > 0 ? `重复 IP: ${preview.duplicateIps.join(', ')}` : '',
+    unknownTypes.length > 0 ? `未知类型: ${unknownTypes.join(', ')}` : '',
+  ].filter(Boolean);
+
+  if (warnings.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="import-warning-list" role="status" aria-label="Import warnings">
+      {warnings.map((warning) => (
+        <p className="import-warning" key={warning}>
+          {warning}
+        </p>
+      ))}
     </div>
   );
 }

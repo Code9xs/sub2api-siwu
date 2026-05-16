@@ -113,4 +113,66 @@ describe('project codec', () => {
     }
     expect(decoded.message).toContain('settings.activeDiagramId');
   });
+
+  it('rejects malformed assets, nodes, edges, and dangling edge references', () => {
+    const project = createProject({ name: 'Production Network', template: 'network' });
+    const node = {
+      id: 'node-1',
+      name: 'api',
+      type: 'service',
+      position: { x: 10, y: 20 },
+      style: {},
+      metadata: {},
+    };
+    const targetNode = { ...node, id: 'node-2', name: 'db' };
+    const edge = {
+      id: 'edge-1',
+      sourceNodeId: 'node-1',
+      targetNodeId: 'node-2',
+      direction: 'none',
+      relationshipType: 'connected-to',
+      style: {},
+      metadata: {},
+    };
+
+    const malformedAsset = decodeProjectFile(
+      JSON.stringify({ ...project, assets: [{ id: 'asset-1', name: 'core' }] }),
+    );
+    const malformedNode = decodeProjectFile(
+      JSON.stringify({
+        ...project,
+        diagrams: [{ ...project.diagrams[0], nodes: [{ ...node, position: { x: '10', y: 20 } }] }],
+      }),
+    );
+    const malformedEdge = decodeProjectFile(
+      JSON.stringify({
+        ...project,
+        diagrams: [
+          { ...project.diagrams[0], nodes: [node, targetNode], edges: [{ ...edge, direction: 'bad' }] },
+        ],
+      }),
+    );
+    const danglingEdge = decodeProjectFile(
+      JSON.stringify({
+        ...project,
+        diagrams: [{ ...project.diagrams[0], nodes: [node], edges: [edge] }],
+      }),
+    );
+
+    expect(malformedAsset.ok).toBe(false);
+    if (malformedAsset.ok) throw new Error('Expected malformed asset to be rejected');
+    expect(malformedAsset.message).toContain('assets[0].type');
+
+    expect(malformedNode.ok).toBe(false);
+    if (malformedNode.ok) throw new Error('Expected malformed node to be rejected');
+    expect(malformedNode.message).toContain('diagrams[0].nodes[0].position.x');
+
+    expect(malformedEdge.ok).toBe(false);
+    if (malformedEdge.ok) throw new Error('Expected malformed edge to be rejected');
+    expect(malformedEdge.message).toContain('diagrams[0].edges[0].direction');
+
+    expect(danglingEdge.ok).toBe(false);
+    if (danglingEdge.ok) throw new Error('Expected dangling edge to be rejected');
+    expect(danglingEdge.message).toContain('diagrams[0].edges[0].targetNodeId');
+  });
 });

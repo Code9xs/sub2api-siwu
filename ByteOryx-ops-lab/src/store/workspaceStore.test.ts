@@ -86,6 +86,72 @@ describe('workspace store', () => {
     });
   });
 
+  it('deletes selected nodes and any edges connected to them', () => {
+    const sourceNodeId = useWorkspaceStore.getState().addManualNode({
+      name: 'api',
+      type: 'service',
+      position: { x: 320, y: 80 },
+    });
+    const targetNodeId = useWorkspaceStore.getState().addManualNode({
+      name: 'db',
+      type: 'database',
+      position: { x: 520, y: 80 },
+    });
+    const edgeId = useWorkspaceStore.getState().connectNodes(sourceNodeId, targetNodeId);
+    useWorkspaceStore.getState().setSelection({ nodeIds: [sourceNodeId], edgeIds: [edgeId] });
+
+    useWorkspaceStore.getState().deleteSelection();
+
+    expect(useWorkspaceStore.getState().activeDiagram().nodes).toEqual([
+      expect.objectContaining({ id: targetNodeId }),
+    ]);
+    expect(useWorkspaceStore.getState().activeDiagram().edges).toEqual([]);
+    expect(useWorkspaceStore.getState().selectedNodeIds).toEqual([]);
+    expect(useWorkspaceStore.getState().selectedEdgeIds).toEqual([]);
+    expect(useWorkspaceStore.getState().saveStatus).toBe('dirty');
+  });
+
+  it('copies selected nodes and edges, then pastes an offset clone', () => {
+    const sourceNodeId = useWorkspaceStore.getState().addManualNode({
+      name: 'api',
+      type: 'service',
+      position: { x: 320, y: 80 },
+      metadata: { tags: ['prod'] },
+    });
+    const targetNodeId = useWorkspaceStore.getState().addManualNode({
+      name: 'db',
+      type: 'database',
+      position: { x: 520, y: 80 },
+    });
+    useWorkspaceStore.getState().connectNodes(sourceNodeId, targetNodeId);
+    useWorkspaceStore.getState().setSelection({ nodeIds: [sourceNodeId, targetNodeId] });
+
+    useWorkspaceStore.getState().copySelection();
+    const pastedNodeIds = useWorkspaceStore.getState().pasteClipboard();
+
+    expect(pastedNodeIds).toHaveLength(2);
+    const diagram = useWorkspaceStore.getState().activeDiagram();
+    expect(diagram.nodes).toHaveLength(4);
+    expect(diagram.edges).toHaveLength(2);
+    expect(diagram.nodes.find((node) => node.id === pastedNodeIds[0])).toMatchObject({
+      name: 'api copy',
+      position: { x: 344, y: 104 },
+      metadata: { tags: ['prod'] },
+    });
+    expect(useWorkspaceStore.getState().selectedNodeIds).toEqual(pastedNodeIds);
+  });
+
+  it('updates the active diagram viewport', () => {
+    useWorkspaceStore.getState().updateViewport({ x: -120, y: 48, zoom: 1.5 });
+
+    expect(useWorkspaceStore.getState().activeDiagram().viewport).toEqual({
+      x: -120,
+      y: 48,
+      zoom: 1.5,
+    });
+    expect(useWorkspaceStore.getState().saveStatus).toBe('dirty');
+  });
+
   it('does not mutate the project when the source node is missing', () => {
     const targetNodeId = useWorkspaceStore.getState().addManualNode({
       name: 'api',
