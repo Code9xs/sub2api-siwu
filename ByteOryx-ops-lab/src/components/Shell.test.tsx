@@ -1,8 +1,17 @@
+import { ReactFlowProvider } from '@xyflow/react';
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { useWorkspaceStore } from '../store/workspaceStore';
 import { Shell } from './Shell';
+
+function renderShell() {
+  return render(
+    <ReactFlowProvider>
+      <Shell />
+    </ReactFlowProvider>,
+  );
+}
 
 describe('Shell', () => {
   beforeEach(() => {
@@ -10,7 +19,7 @@ describe('Shell', () => {
   });
 
   it('renders the drawing workspace shell', () => {
-    render(<Shell />);
+    renderShell();
 
     expect(screen.getByText('Ops Drawing Tool')).toBeInTheDocument();
     expect(screen.getByRole('region', { name: '资产池' })).toBeInTheDocument();
