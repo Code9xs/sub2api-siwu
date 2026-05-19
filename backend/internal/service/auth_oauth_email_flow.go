@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/mail"
 	"strings"
 	"time"
@@ -19,7 +18,7 @@ func normalizeOAuthSignupSource(signupSource string) string {
 	switch signupSource {
 	case "", "email":
 		return "email"
-	case "linuxdo", "wechat", "oidc", "github", "google", "dingtalk":
+	case "linuxdo", "wechat", "oidc", "github", "google":
 		return signupSource
 	default:
 		return "email"
@@ -72,7 +71,7 @@ func (s *AuthService) validateOAuthRegistrationInvitation(ctx context.Context, i
 	if err != nil {
 		return nil, ErrInvitationCodeInvalid
 	}
-	if redeemCode.Type != RedeemTypeInvitation || !redeemCode.CanUse() {
+	if redeemCode.Type != RedeemTypeInvitation || redeemCode.Status != StatusUnused {
 		return nil, ErrInvitationCodeInvalid
 	}
 	return redeemCode, nil
@@ -110,7 +109,7 @@ func (s *AuthService) RegisterOAuthEmailAccount(
 	if s == nil {
 		return nil, nil, ErrServiceUnavailable
 	}
-	if s.settingService == nil || (!s.settingService.IsRegistrationEnabled(ctx) && !s.canBypassRegistrationDisabledForOAuth(ctx, signupSource)) {
+	if s.settingService == nil || !s.settingService.IsRegistrationEnabled(ctx) {
 		return nil, nil, ErrRegDisabled
 	}
 
@@ -119,22 +118,18 @@ func (s *AuthService) RegisterOAuthEmailAccount(
 		return nil, nil, ErrEmailReserved
 	}
 	if err := s.validateRegistrationEmailPolicy(ctx, email); err != nil {
-		slog.Error("oauth email register: policy rejected", "email", email, "error", err.Error())
 		return nil, nil, err
 	}
 	if err := s.VerifyOAuthEmailCode(ctx, email, verifyCode); err != nil {
-		slog.Error("oauth email register: verify code failed", "email", email, "error", err.Error())
 		return nil, nil, err
 	}
 
 	if _, err := s.validateOAuthRegistrationInvitation(ctx, invitationCode); err != nil {
-		slog.Error("oauth email register: invitation failed", "email", email, "error", err.Error())
 		return nil, nil, err
 	}
 
 	existsEmail, err := s.userRepo.ExistsByEmail(ctx, email)
 	if err != nil {
-		slog.Error("oauth email register: ExistsByEmail failed", "email", email, "error", err.Error())
 		return nil, nil, ErrServiceUnavailable
 	}
 	if existsEmail {
@@ -163,7 +158,6 @@ func (s *AuthService) RegisterOAuthEmailAccount(
 		if errors.Is(err, ErrEmailExists) {
 			return nil, nil, ErrEmailExists
 		}
-		slog.Error("oauth email register: userRepo.Create failed", "email", email, "signup_source", signupSource, "error", err.Error())
 		return nil, nil, ErrServiceUnavailable
 	}
 
@@ -187,7 +181,7 @@ func (s *AuthService) RegisterVerifiedOAuthEmailAccount(
 	if s == nil {
 		return nil, nil, ErrServiceUnavailable
 	}
-	if s.settingService == nil || (!s.settingService.IsRegistrationEnabled(ctx) && !s.canBypassRegistrationDisabledForOAuth(ctx, signupSource)) {
+	if s.settingService == nil || !s.settingService.IsRegistrationEnabled(ctx) {
 		return nil, nil, ErrRegDisabled
 	}
 
@@ -364,7 +358,6 @@ func (s *AuthService) loadOAuthRegistrationInvitation(ctx context.Context, invit
 			UsedAt:       entity.UsedAt,
 			Notes:        oauthEmailFlowStringValue(entity.Notes),
 			CreatedAt:    entity.CreatedAt,
-			ExpiresAt:    entity.ExpiresAt,
 			GroupID:      entity.GroupID,
 			ValidityDays: entity.ValidityDays,
 		}, nil
@@ -375,11 +368,7 @@ func (s *AuthService) loadOAuthRegistrationInvitation(ctx context.Context, invit
 func (s *AuthService) useOAuthRegistrationInvitation(ctx context.Context, invitationID, userID int64) error {
 	if client := s.oauthEmailFlowClient(ctx); client != nil {
 		affected, err := client.RedeemCode.Update().
-			Where(
-				redeemcode.IDEQ(invitationID),
-				redeemcode.StatusEQ(StatusUnused),
-				redeemcode.Or(redeemcode.ExpiresAtIsNil(), redeemcode.ExpiresAtGT(time.Now().UTC())),
-			).
+			Where(redeemcode.IDEQ(invitationID), redeemcode.StatusEQ(StatusUnused)).
 			SetStatus(StatusUsed).
 			SetUsedBy(userID).
 			SetUsedAt(time.Now().UTC()).
@@ -407,11 +396,6 @@ func (s *AuthService) updateOAuthRegistrationInvitation(ctx context.Context, cod
 			SetStatus(code.Status).
 			SetNotes(code.Notes).
 			SetValidityDays(code.ValidityDays)
-		if code.ExpiresAt != nil {
-			update = update.SetExpiresAt(*code.ExpiresAt)
-		} else {
-			update = update.ClearExpiresAt()
-		}
 		if code.UsedBy != nil {
 			update = update.SetUsedBy(*code.UsedBy)
 		} else {

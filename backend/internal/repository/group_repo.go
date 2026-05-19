@@ -283,90 +283,47 @@ func (r *groupRepository) ListWithFilters(ctx context.Context, params pagination
 }
 
 func (r *groupRepository) listWithAccountCountSort(ctx context.Context, q *dbent.GroupQuery, params pagination.PaginationParams, total int) ([]service.Group, *pagination.PaginationResult, error) {
-	// 第一步：只查 ID + sort_order（轻量，不做分页 — 需要全量排序 account_count）。
-	rows, err := q.Clone().
-		Select(group.FieldID, group.FieldSortOrder).
+	groups, err := q.
 		Order(dbent.Asc(group.FieldSortOrder), dbent.Asc(group.FieldID)).
 		All(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	type sortEntry struct {
-		id           int64
-		sortOrder    int
-		accountCount int64
-	}
-	entries := make([]sortEntry, 0, len(rows))
-	groupIDs := make([]int64, len(rows))
-	for i, r := range rows {
-		groupIDs[i] = r.ID
-		entries = append(entries, sortEntry{id: r.ID, sortOrder: r.SortOrder})
+	groupIDs := make([]int64, 0, len(groups))
+	outGroups := make([]service.Group, 0, len(groups))
+	for i := range groups {
+		g := groupEntityToService(groups[i])
+		outGroups = append(outGroups, *g)
+		groupIDs = append(groupIDs, g.ID)
 	}
 
-	// 第二步：批量加载 account counts（一次 SQL）。
 	counts, err := r.loadAccountCounts(ctx, groupIDs)
 	if err != nil {
 		return nil, nil, err
 	}
-	for i := range entries {
-		c := counts[entries[i].id]
-		if c.Total > 0 {
-			entries[i].accountCount = c.Total
-		}
+	for i := range outGroups {
+		c := counts[outGroups[i].ID]
+		outGroups[i].AccountCount = c.Total
+		outGroups[i].ActiveAccountCount = c.Active
+		outGroups[i].RateLimitedAccountCount = c.RateLimited
 	}
 
-	// 第三步：Go 侧排序（数据量 = Group 总数，通常 < 200，安全）。
 	sortOrder := params.NormalizedSortOrder(pagination.SortOrderDesc)
-	tieCmp := func(a, b sortEntry) bool {
-		if a.sortOrder == b.sortOrder {
-			return a.id < b.id
-		}
-		return a.sortOrder < b.sortOrder
-	}
-	sort.SliceStable(entries, func(i, j int) bool {
-		if entries[i].accountCount == entries[j].accountCount {
-			return tieCmp(entries[i], entries[j])
+	sort.SliceStable(outGroups, func(i, j int) bool {
+		if outGroups[i].AccountCount == outGroups[j].AccountCount {
+			if outGroups[i].SortOrder == outGroups[j].SortOrder {
+				return outGroups[i].ID < outGroups[j].ID
+			}
+			return outGroups[i].SortOrder < outGroups[j].SortOrder
 		}
 		if sortOrder == pagination.SortOrderAsc {
-			return entries[i].accountCount < entries[j].accountCount
+			return outGroups[i].AccountCount < outGroups[j].AccountCount
 		}
-		return entries[i].accountCount > entries[j].accountCount
+		return outGroups[i].AccountCount > outGroups[j].AccountCount
 	})
 
-	// 第四步：分页，只加载当前页需要的完整 Group。
-	page := paginateSlice(entries, params)
-	if len(page) == 0 {
-		return nil, paginationResultFromTotal(int64(total), params), nil
-	}
-
-	pageIDs := make([]int64, len(page))
-	pageIdx := make(map[int64]int, len(page))
-	for i, e := range page {
-		pageIDs[i] = e.id
-		pageIdx[e.id] = i
-	}
-
-	groups, err := r.client.Group.Query().
-		Where(group.IDIn(pageIDs...)).
-		All(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	outGroups := make([]service.Group, len(page))
-	for i := range groups {
-		g := groupEntityToService(groups[i])
-		c := counts[g.ID]
-		g.AccountCount = c.Total
-		g.ActiveAccountCount = c.Active
-		g.RateLimitedAccountCount = c.RateLimited
-		if idx, ok := pageIdx[g.ID]; ok {
-			outGroups[idx] = *g
-		}
-	}
-
-	return outGroups, paginationResultFromTotal(int64(total), params), nil
+	return paginateSlice(outGroups, params), paginationResultFromTotal(int64(total), params), nil
 }
 
 func groupListOrder(params pagination.PaginationParams) []func(*entsql.Selector) {

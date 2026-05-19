@@ -214,11 +214,11 @@
             <div class="flex flex-col">
               <span class="font-medium text-gray-900 dark:text-white">{{ value }}</span>
               <span
-                v-if="row.extra?.email_address || row.extra?.email || row.credentials?.email"
+                v-if="row.extra?.email_address"
                 class="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[200px]"
-                :title="String(row.extra?.email_address || row.extra?.email || row.credentials?.email)"
+                :title="row.extra.email_address"
               >
-                {{ row.extra?.email_address || row.extra?.email || row.credentials?.email }}
+                {{ row.extra.email_address }}
               </span>
             </div>
           </template>

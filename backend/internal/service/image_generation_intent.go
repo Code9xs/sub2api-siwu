@@ -170,13 +170,7 @@ func cloneRequestMapForImageIntent(body []byte) map[string]any {
 	return out
 }
 
-type OpenAIResponsesImageBillingConfig struct {
-	Model     string
-	SizeTier  string
-	InputSize string
-}
-
-func resolveOpenAIResponsesImageBillingConfigDetailed(reqBody map[string]any, fallbackModel string) (OpenAIResponsesImageBillingConfig, error) {
+func resolveOpenAIResponsesImageBillingConfig(reqBody map[string]any, fallbackModel string) (string, string, error) {
 	imageModel := ""
 	imageSize := ""
 	hasImageTool := false
@@ -209,24 +203,12 @@ func resolveOpenAIResponsesImageBillingConfigDetailed(reqBody map[string]any, fa
 		imageModel = strings.TrimSpace(fallbackModel)
 	}
 	sizeTier := normalizeOpenAIImageSizeTier(imageSize)
-	return OpenAIResponsesImageBillingConfig{
-		Model:     imageModel,
-		SizeTier:  sizeTier,
-		InputSize: imageSize,
-	}, nil
+	return imageModel, sizeTier, nil
 }
 
 func resolveOpenAIResponsesImageBillingConfigFromBody(body []byte, fallbackModel string) (string, string, error) {
-	cfg, err := resolveOpenAIResponsesImageBillingConfigDetailedFromBody(body, fallbackModel)
-	if err != nil {
-		return "", "", err
-	}
-	return cfg.Model, cfg.SizeTier, nil
-}
-
-func resolveOpenAIResponsesImageBillingConfigDetailedFromBody(body []byte, fallbackModel string) (OpenAIResponsesImageBillingConfig, error) {
 	reqBody := cloneRequestMapForImageIntent(body)
-	return resolveOpenAIResponsesImageBillingConfigDetailed(reqBody, fallbackModel)
+	return resolveOpenAIResponsesImageBillingConfig(reqBody, fallbackModel)
 }
 
 func isOpenAIImageBillingModelAlias(model string) bool {
