@@ -5,6 +5,56 @@
 import { config } from '@vue/test-utils'
 import { vi } from 'vitest'
 
+function readStorage(getStorage: () => Storage): Storage | undefined {
+  try {
+    return getStorage()
+  } catch {
+    return undefined
+  }
+}
+
+function createMemoryStorage(): Storage {
+  const values = new Map<string, string>()
+
+  return {
+    get length() {
+      return values.size
+    },
+    clear() {
+      values.clear()
+    },
+    getItem(key: string) {
+      return values.has(key) ? values.get(key)! : null
+    },
+    key(index: number) {
+      return Array.from(values.keys())[index] ?? null
+    },
+    removeItem(key: string) {
+      values.delete(key)
+    },
+    setItem(key: string, value: string) {
+      values.set(key, String(value))
+    }
+  }
+}
+
+const jsdomLocalStorage = typeof window !== 'undefined' ? readStorage(() => window.localStorage) : undefined
+const globalLocalStorage = readStorage(() => globalThis.localStorage)
+
+if (!globalLocalStorage || typeof globalLocalStorage.getItem !== 'function') {
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: jsdomLocalStorage ?? createMemoryStorage()
+  })
+}
+
+if (typeof window !== 'undefined' && !jsdomLocalStorage) {
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    value: globalThis.localStorage
+  })
+}
+
 // Mock requestIdleCallback (Safari < 15 不支持)
 if (typeof globalThis.requestIdleCallback === 'undefined') {
   globalThis.requestIdleCallback = ((callback: IdleRequestCallback) => {

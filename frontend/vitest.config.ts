@@ -18,7 +18,7 @@ export default defineConfig({
         url: 'http://localhost/'
       }
     },
-    setupFiles: ['src/test/setup.ts'],
+    setupFiles: ['./src/__tests__/setup.ts'],
     include: ['src/**/*.{test,spec}.{js,ts,jsx,tsx}'],
     exclude: ['node_modules', 'dist'],
     coverage: {
