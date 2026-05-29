@@ -353,8 +353,11 @@ const displayModelStats = computed(() => {
       : props.modelStats
   if (!sourceStats?.length) return []
 
-  const metricKey = props.metric === 'actual_cost' ? 'actual_cost' : 'total_tokens'
-  return [...sourceStats].sort((a, b) => b[metricKey] - a[metricKey])
+  return [...sourceStats].sort((a, b) => {
+    const left = props.metric === 'actual_cost' ? safeNumber(b.actual_cost) : safeNumber(b.total_tokens)
+    const right = props.metric === 'actual_cost' ? safeNumber(a.actual_cost) : safeNumber(a.total_tokens)
+    return left - right
+  })
 })
 
 const chartData = computed(() => {
@@ -364,7 +367,7 @@ const chartData = computed(() => {
     labels: displayModelStats.value.map((m) => m.model),
     datasets: [
       {
-        data: displayModelStats.value.map((m) => props.metric === 'actual_cost' ? m.actual_cost : m.total_tokens),
+        data: displayModelStats.value.map((m) => props.metric === 'actual_cost' ? safeNumber(m.actual_cost) : safeNumber(m.total_tokens)),
         backgroundColor: chartColors.slice(0, displayModelStats.value.length),
         borderWidth: 0
       }
@@ -495,7 +498,12 @@ const getRankingRowLabel = (item: RankingDisplayItem): string => {
   return getRankingUserLabel(item)
 }
 
-const formatCost = (value: number): string => {
+const safeNumber = (value: number | undefined | null): number => {
+  return Number.isFinite(Number(value)) ? Number(value) : 0
+}
+
+const formatCost = (value: number | undefined | null): string => {
+  value = safeNumber(value)
   if (value >= 1000) {
     return (value / 1000).toFixed(2) + 'K'
   } else if (value >= 1) {
