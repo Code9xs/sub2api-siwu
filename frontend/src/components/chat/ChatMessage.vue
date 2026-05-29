@@ -338,8 +338,8 @@ async function copyText(text: string) {
   margin: 12px 0;
   border-radius: 10px;
   overflow: hidden;
-  border: 1px solid #d1d5db;
-  background: #f8fafc;
+  border: 1px solid var(--color-code-border, #d1d5db);
+  background: var(--color-code-bg, #f8fafc);
 }
 
 .markdown-body :deep(.code-block-header) {
@@ -347,13 +347,13 @@ async function copyText(text: string) {
   align-items: center;
   justify-content: space-between;
   padding: 8px 14px;
-  background: #eef2f7;
-  border-bottom: 1px solid #d1d5db;
+  background: var(--color-code-header-bg, #eef2f7);
+  border-bottom: 1px solid var(--color-code-border, #d1d5db);
 }
 
 .markdown-body :deep(.code-lang) {
   font-size: 12px;
-  color: #475569;
+  color: var(--color-code-lang, #475569);
   text-transform: lowercase;
 }
 
@@ -362,24 +362,24 @@ async function copyText(text: string) {
   align-items: center;
   gap: 4px;
   padding: 4px 9px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--color-code-copy-border, #cbd5e1);
   border-radius: 6px;
-  background: #ffffff;
-  color: #334155;
+  background: var(--color-code-copy-bg, #ffffff);
+  color: var(--color-code-copy-text, #334155);
   font-size: 12px;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .markdown-body :deep(.code-copy-btn:hover) {
-  background: #e2e8f0;
-  color: #0f172a;
+  background: var(--color-code-copy-hover-bg, #e2e8f0);
+  color: var(--color-code-copy-hover-text, #0f172a);
 }
 
 .markdown-body :deep(.code-copy-btn.copied) {
-  border-color: #22c55e;
-  background: #dcfce7;
-  color: #15803d;
+  border-color: var(--color-code-copy-done-border, #22c55e);
+  background: var(--color-code-copy-done-bg, #dcfce7);
+  color: var(--color-code-copy-done-text, #15803d);
 }
 
 .markdown-body :deep(.code-block) {
@@ -389,8 +389,8 @@ async function copyText(text: string) {
   font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
   font-size: 13px;
   line-height: 1.6;
-  background: #f8fafc;
-  color: #1e293b;
+  background: var(--color-code-bg, #f8fafc);
+  color: var(--color-code-text, #1e293b);
 }
 
 .markdown-body :deep(.code-block code) {
@@ -408,25 +408,25 @@ async function copyText(text: string) {
   color: var(--color-text-primary, #1f2937);
 }
 
-/* Highlight.js Theme - readable light theme */
-.markdown-body :deep(.hljs-keyword) { color: #7c3aed; }
-.markdown-body :deep(.hljs-string) { color: #047857; }
-.markdown-body :deep(.hljs-number) { color: #b45309; }
-.markdown-body :deep(.hljs-comment) { color: #64748b; font-style: italic; }
-.markdown-body :deep(.hljs-function) { color: #2563eb; }
-.markdown-body :deep(.hljs-title) { color: #1d4ed8; }
-.markdown-body :deep(.hljs-params) { color: #be185d; }
-.markdown-body :deep(.hljs-built_in) { color: #9333ea; }
-.markdown-body :deep(.hljs-type) { color: #0f766e; }
-.markdown-body :deep(.hljs-attr) { color: #0369a1; }
-.markdown-body :deep(.hljs-variable) { color: #334155; }
-.markdown-body :deep(.hljs-literal) { color: #c2410c; }
-.markdown-body :deep(.hljs-meta) { color: #be123c; }
-.markdown-body :deep(.hljs-selector-class) { color: #047857; }
-.markdown-body :deep(.hljs-selector-tag) { color: #7c3aed; }
-.markdown-body :deep(.hljs-selector-id) { color: #2563eb; }
-.markdown-body :deep(.hljs-addition) { color: #047857; background: #dcfce7; }
-.markdown-body :deep(.hljs-deletion) { color: #be123c; background: #fee2e2; }
+/* Highlight.js Theme */
+.markdown-body :deep(.hljs-keyword) { color: var(--color-hljs-keyword, #7c3aed); }
+.markdown-body :deep(.hljs-string) { color: var(--color-hljs-string, #047857); }
+.markdown-body :deep(.hljs-number) { color: var(--color-hljs-number, #b45309); }
+.markdown-body :deep(.hljs-comment) { color: var(--color-hljs-comment, #64748b); font-style: italic; }
+.markdown-body :deep(.hljs-function) { color: var(--color-hljs-function, #2563eb); }
+.markdown-body :deep(.hljs-title) { color: var(--color-hljs-title, #1d4ed8); }
+.markdown-body :deep(.hljs-params) { color: var(--color-hljs-params, #be185d); }
+.markdown-body :deep(.hljs-built_in) { color: var(--color-hljs-built-in, #9333ea); }
+.markdown-body :deep(.hljs-type) { color: var(--color-hljs-type, #0f766e); }
+.markdown-body :deep(.hljs-attr) { color: var(--color-hljs-attr, #0369a1); }
+.markdown-body :deep(.hljs-variable) { color: var(--color-hljs-variable, #334155); }
+.markdown-body :deep(.hljs-literal) { color: var(--color-hljs-literal, #c2410c); }
+.markdown-body :deep(.hljs-meta) { color: var(--color-hljs-meta, #be123c); }
+.markdown-body :deep(.hljs-selector-class) { color: var(--color-hljs-selector-class, #047857); }
+.markdown-body :deep(.hljs-selector-tag) { color: var(--color-hljs-selector-tag, #7c3aed); }
+.markdown-body :deep(.hljs-selector-id) { color: var(--color-hljs-selector-id, #2563eb); }
+.markdown-body :deep(.hljs-addition) { color: var(--color-hljs-addition, #047857); background: var(--color-hljs-addition-bg, #dcfce7); }
+.markdown-body :deep(.hljs-deletion) { color: var(--color-hljs-deletion, #be123c); background: var(--color-hljs-deletion-bg, #fee2e2); }
 
 .copy-toast {
   position: absolute;
